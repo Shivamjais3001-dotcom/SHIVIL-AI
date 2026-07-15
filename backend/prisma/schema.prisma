@@ -110,6 +110,7 @@ model Student {
   libraryIssues    LibraryIssue[]
   fees             FeeReceipt[]
   predictions      AttendancePrediction[]
+  enrollments      Enrollment[]
 
   @@index([rollNo])
   @@index([enrollmentNo])
@@ -151,6 +152,7 @@ model Faculty {
   schedules       Timetable[]
   facultyAttendance  FacultyAttendance[]
   attendanceSessions AttendanceSession[]
+  offeredCourses  CourseOffering[]
 
   @@index([userId])
   @@index([employeeId])
@@ -193,6 +195,7 @@ model Subject {
   timetables Timetable[]
   attendanceSessions AttendanceSession[]
   predictions AttendancePrediction[]
+  offerings CourseOffering[]
 
   @@index([courseId])
   @@index([facultyId])
@@ -438,4 +441,87 @@ model ApiKey {
   lastUsedAt DateTime?
 
   @@index([userId])
+}
+
+model Program {
+  id            String   @id @default(uuid())
+  code          String   @unique
+  name          String
+  durationYears Int      @default(4)
+  departmentId  String?
+  universityId  String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([universityId])
+}
+
+model Classroom {
+  id            String           @id @default(uuid())
+  building      String
+  roomNo        String
+  capacity      Int
+  type          String           @default("Classroom") // e.g. "Classroom", "Lab", "SeminarHall"
+  resources     Json?            // Array of features (e.g. Projector, AC)
+  availability  Boolean          @default(true)
+  universityId  String?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  offerings     CourseOffering[]
+
+  @@index([universityId])
+  @@index([building, roomNo])
+}
+
+model CourseOffering {
+  id           String      @id @default(uuid())
+  subjectId    String
+  subject      Subject     @relation(fields: [subjectId], references: [id])
+  facultyId    String?
+  faculty      Faculty?    @relation(fields: [facultyId], references: [id])
+  classroomId  String?
+  classroom    Classroom?  @relation(fields: [classroomId], references: [id])
+  section      String
+  semester     String
+  academicYear String
+  maxCapacity  Int         @default(60)
+  status       String      @default("Open") // e.g. "Open", "Closed", "Waitlist"
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  enrollments  Enrollment[]
+
+  @@index([subjectId])
+  @@index([facultyId])
+  @@index([classroomId])
+}
+
+model Enrollment {
+  id         String         @id @default(uuid())
+  studentId  String
+  student    Student        @relation(fields: [studentId], references: [id])
+  offeringId String
+  offering   CourseOffering @relation(fields: [offeringId], references: [id])
+  status     String         @default("ENROLLED") // e.g. "ENROLLED", "WAITLISTED", "DROPPED"
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+
+  @@index([studentId])
+  @@index([offeringId])
+}
+
+model AcademicCalendar {
+  id           String   @id @default(uuid())
+  title        String
+  type         String   // e.g. "SemesterStart", "SemesterEnd", "Registration", "Exam", "Holiday"
+  startDate    DateTime
+  endDate      DateTime
+  description  String?
+  universityId String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([universityId])
+  @@index([startDate])
 }
