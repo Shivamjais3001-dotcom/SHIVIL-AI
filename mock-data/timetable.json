@@ -1,0 +1,4 @@
+[
+  { "id": 601, "day": "Monday", "time": "09:00 AM - 10:30 AM", "subject": "CS-302 Advanced Algorithms", "faculty": "Dr. Sarah Jenkins", "room": "Room 402" },
+  { "id": 602, "day": "Monday", "time": "11:00 AM - 12:00 PM", "subject": "Physics Elective Audit", "faculty": "Dr. Richard Feynman", "room": "Hall B" }
+]

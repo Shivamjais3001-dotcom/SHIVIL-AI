@@ -1,0 +1,30 @@
+export const HTTP_STATUS = {
+  OK: 200,
+  CREATED: 201,
+  ACCEPTED: 202,
+  NO_CONTENT: 204,
+  BAD_REQUEST: 400,
+  UNAUTHORIZED: 401,
+  FORBIDDEN: 403,
+  NOT_FOUND: 404,
+  CONFLICT: 409,
+  UNPROCESSABLE_ENTITY: 422,
+  TOO_MANY_REQUESTS: 429,
+  INTERNAL_SERVER_ERROR: 500,
+} as const;
+
+export const ROLES = {
+  SUPER_ADMIN: "SUPER_ADMIN",
+  UNIVERSITY_ADMIN: "UNIVERSITY_ADMIN",
+  HOD: "HOD",
+  FACULTY: "FACULTY",
+  STUDENT: "STUDENT",
+  PARENT: "PARENT",
+  STAFF: "STAFF",
+} as const;
+
+export const SYSTEM = {
+  API_VERSION: "v1",
+  PORT: process.env.PORT || 5000,
+  NODE_ENV: process.env.NODE_ENV || "development",
+} as const;

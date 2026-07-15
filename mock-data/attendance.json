@@ -1,0 +1,8 @@
+[
+  { "id": 401, "studentName": "Arjun Sharma", "roll": "CS23001", "course": "Advanced Algorithms", "status": "Present", "date": "2026-07-15" },
+  { "id": 402, "studentName": "Priya Patel", "roll": "CS23002", "course": "Advanced Algorithms", "status": "Present", "date": "2026-07-15" },
+  { "id": 403, "studentName": "Rohan Gupta", "roll": "EE22014", "course": "Network Circuits", "status": "Present", "date": "2026-07-15" },
+  { "id": 404, "studentName": "Neha Reddy", "roll": "ME24045", "course": "Thermodynamics", "status": "Absent", "date": "2026-07-15" },
+  { "id": 405, "studentName": "Kabir Singh", "roll": "CS23009", "course": "Advanced Algorithms", "status": "Present", "date": "2026-07-15" },
+  { "id": 406, "studentName": "Anya Sen", "roll": "EC23081", "course": "Quantum Physics", "status": "Absent", "date": "2026-07-15" }
+]

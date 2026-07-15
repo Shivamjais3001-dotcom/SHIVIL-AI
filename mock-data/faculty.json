@@ -1,0 +1,8 @@
+[
+  { "id": 201, "name": "Dr. Sarah Jenkins", "department": "Computer Science", "email": "sarah.jenkins@university.edu" },
+  { "id": 202, "name": "Prof. Alan Turing", "department": "Computer Science", "email": "alan.turing@university.edu" },
+  { "id": 203, "name": "Dr. Richard Feynman", "department": "Physics & EE", "email": "r.feynman@university.edu" },
+  { "id": 204, "name": "Dr. Emily Watson", "department": "Mechanical Eng", "email": "emily.watson@university.edu" },
+  { "id": 205, "name": "Prof. Ada Lovelace", "department": "Computer Science", "email": "ada.lovelace@university.edu" },
+  { "id": 206, "name": "Dr. Marie Curie", "department": "Physics & EE", "email": "m.curie@university.edu" }
+]

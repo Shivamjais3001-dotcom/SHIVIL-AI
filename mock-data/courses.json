@@ -1,0 +1,8 @@
+[
+  { "id": 301, "courseCode": "CS-101", "courseName": "Introduction to Computer Programming", "department": "Computer Science", "credits": 4, "semester": "Semester I" },
+  { "id": 302, "courseCode": "CS-302", "courseName": "Design & Analysis of Algorithms", "department": "Computer Science", "credits": 4, "semester": "Semester V" },
+  { "id": 303, "courseCode": "EE-201", "courseName": "Network Analysis & Circuits", "department": "Electrical Eng", "credits": 3, "semester": "Semester III" },
+  { "id": 304, "courseCode": "ME-301", "courseName": "Classical Thermodynamics", "department": "Mechanical Eng", "credits": 3, "semester": "Semester V" },
+  { "id": 305, "courseCode": "MA-102", "courseName": "Linear Algebra & Calculus", "department": "Mathematics", "credits": 4, "semester": "Semester I" },
+  { "id": 306, "courseCode": "PHY-103", "courseName": "Quantum Mechanics & Wave Dynamics", "department": "Physics & EE", "credits": 3, "semester": "Semester II" }
+]

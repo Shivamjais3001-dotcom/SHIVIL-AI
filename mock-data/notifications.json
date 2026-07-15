@@ -1,0 +1,9 @@
+[
+  { "id": 701, "title": "Registry Event", "desc": "New student Viktor Malhotra registered in CSE Department." },
+  { "id": 702, "title": "Academic Audit", "desc": "Dr. Alan Turing published algorithms grading distributions." },
+  { "id": 703, "title": "Hostel Mess Alert", "desc": "Mess Mess Hall B dinner occupancy reaches Mess Hall B peak limits." },
+  { "id": 704, "title": "Financial Ledger", "desc": "AI completed quarterly tuition collection auditing check." },
+  { "id": 705, "title": "Placement Office", "desc": "Google recruiter booked seminar session for CSE cohort." },
+  { "id": 706, "title": "Research Alert", "desc": "Dr. Richard Feynman published research on Quantum Dynamics." },
+  { "id": 707, "title": "Attendance Auditor", "desc": "2 student shortage alerts flagged in ME Department." }
+]

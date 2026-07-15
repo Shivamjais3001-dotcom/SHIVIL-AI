@@ -1,0 +1,10 @@
+[
+  { "id": 101, "name": "Arjun Sharma", "roll": "CS23001", "branch": "Computer Science", "year": "3rd", "status": "Active" },
+  { "id": 102, "name": "Priya Patel", "roll": "CS23002", "branch": "Computer Science", "year": "3rd", "status": "Active" },
+  { "id": 103, "name": "Rohan Gupta", "roll": "EE22014", "branch": "Electrical Eng", "year": "4th", "status": "Active" },
+  { "id": 104, "name": "Neha Reddy", "roll": "ME24045", "branch": "Mechanical Eng", "year": "2nd", "status": "Shortage" },
+  { "id": 105, "name": "Kabir Singh", "roll": "CS23009", "branch": "Computer Science", "year": "3rd", "status": "Active" },
+  { "id": 106, "name": "Anya Sen", "roll": "EC23081", "branch": "Electronics", "year": "3rd", "status": "Shortage" },
+  { "id": 107, "name": "Vikram Malhotra", "roll": "EE24102", "branch": "Electrical Eng", "year": "2nd", "status": "Active" },
+  { "id": 108, "name": "Mira Nair", "roll": "CS24108", "branch": "Computer Science", "year": "2nd", "status": "Active" }
+]

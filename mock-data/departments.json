@@ -1,0 +1,7 @@
+[
+  { "id": 501, "name": "Computer Science", "code": "CS" },
+  { "id": 502, "name": "Electrical Eng", "code": "EE" },
+  { "id": 503, "name": "Mechanical Eng", "code": "ME" },
+  { "id": 504, "name": "Physics & EE", "code": "PHY" },
+  { "id": 505, "name": "Mathematics", "code": "MA" }
+]
