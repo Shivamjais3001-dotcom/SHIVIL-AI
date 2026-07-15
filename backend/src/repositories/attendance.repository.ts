@@ -1,24 +1,73 @@
-import { AttendanceStatus } from "@prisma/client";
 import prisma from "../config/database";
 
 export class AttendanceRepository {
-  async findById(id: string) {
-    return prisma.attendance.findUnique({
+  async createSession(data: any) {
+    return prisma.attendanceSession.create({
+      data,
+      include: { subject: true, faculty: true }
+    });
+  }
+
+  async findSessionById(id: string) {
+    return prisma.attendanceSession.findUnique({
       where: { id },
+      include: { subject: true, faculty: true }
+    });
+  }
+
+  async findActiveSessions(subjectId: string, facultyId: string) {
+    return prisma.attendanceSession.findMany({
+      where: { subjectId, facultyId, status: "Active" }
+    });
+  }
+
+  async updateSessionStatus(id: string, status: string) {
+    return prisma.attendanceSession.update({
+      where: { id },
+      data: { status }
+    });
+  }
+
+  async markStudentAttendance(data: any) {
+    return prisma.attendance.create({
+      data,
       include: { student: true, subject: true }
+    });
+  }
+
+  async markFacultyAttendance(data: any) {
+    return prisma.facultyAttendance.create({
+      data,
+      include: { faculty: true }
+    });
+  }
+
+  async findFacultyAttendance(facultyId: string, date: Date) {
+    const startOfDay = new Date(date.setHours(0, 0, 0, 0));
+    const endOfDay = new Date(date.setHours(23, 59, 59, 999));
+
+    return prisma.facultyAttendance.findFirst({
+      where: {
+        facultyId,
+        date: { gte: startOfDay, lte: endOfDay }
+      }
+    });
+  }
+
+  async updateFacultyAttendance(id: string, data: any) {
+    return prisma.facultyAttendance.update({
+      where: { id },
+      data
     });
   }
 
   async findAndCount(params: {
     page: number;
     limit: number;
-    sort: string;
-    order: "asc" | "desc";
-    search: string;
-    cursor?: string;
     studentId?: string;
     subjectId?: string;
-    status?: AttendanceStatus;
+    sessionId?: string;
+    status?: string;
     universityId?: string | null;
   }) {
     const whereClause: any = {};
@@ -31,6 +80,10 @@ export class AttendanceRepository {
       whereClause.subjectId = params.subjectId;
     }
 
+    if (params.sessionId) {
+      whereClause.sessionId = params.sessionId;
+    }
+
     if (params.status) {
       whereClause.status = params.status;
     }
@@ -38,75 +91,134 @@ export class AttendanceRepository {
     if (params.universityId) {
       whereClause.student = {
         user: { universityId: params.universityId }
-      };
-    }
-
-    if (params.search) {
-      whereClause.student = {
-        ...(whereClause.student || {}),
-        name: { contains: params.search, mode: "insensitive" }
-      };
-    }
-
-    const queryOptions: any = {
-      where: whereClause,
-      orderBy: { [params.sort]: params.order },
-      take: params.limit,
-      include: {
-        student: true,
-        subject: { include: { course: true } }
-      }
-    };
-
-    if (params.cursor) {
-      queryOptions.cursor = { id: params.cursor };
-      queryOptions.skip = 1; // Skip the cursor itself to avoid duplication
-    } else {
-      queryOptions.skip = (params.page - 1) * params.limit;
+      } as any;
     }
 
     const [total, data] = await prisma.$transaction([
       prisma.attendance.count({ where: whereClause }),
-      prisma.attendance.findMany(queryOptions)
+      prisma.attendance.findMany({
+        where: whereClause,
+        skip: (params.page - 1) * params.limit,
+        take: params.limit,
+        include: {
+          student: true,
+          subject: true,
+          session: true
+        },
+        orderBy: { date: "desc" }
+      })
     ]);
 
-    const nextCursor = data.length === params.limit ? data[data.length - 1].id : null;
-
-    return { total, data, nextCursor };
+    return { total, data };
   }
 
-  async mark(data: { date: Date; status: AttendanceStatus; studentId: string; subjectId: string }) {
-    return prisma.attendance.create({
-      data,
-      include: { student: true, subject: true }
+  async findAnomalies(universityId: string | null) {
+    const filter: any = {};
+    if (universityId) {
+      filter.student = {
+        user: { universityId }
+      } as any;
+    }
+
+    // Find geofence anomalies (e.g. location details exist but gps coords mismatch from session)
+    // or face recognition confidence below threshold (e.g. < 0.7)
+    const records = await prisma.attendance.findMany({
+      where: {
+        ...filter,
+        OR: [
+          { remarks: { contains: "GPS geofence breached" } },
+          { remarks: { contains: "Face identification low confidence" } }
+        ]
+      },
+      include: { student: true, subject: true, session: true },
+      take: 50
     });
+
+    return records;
   }
 
-  async update(id: string, data: { status: AttendanceStatus; date?: Date }) {
-    return prisma.attendance.update({
-      where: { id },
-      data,
-      include: { student: true, subject: true }
+  async findAtRiskStudents(universityId: string | null, threshold: number = 75.0) {
+    const filter: any = {};
+    if (universityId) {
+      filter.user = { universityId } as any;
+    }
+
+    // Load active student counts & their attendance records in a single transactional query
+    const students = await prisma.student.findMany({
+      where: { ...filter, deletedAt: null, status: "Active" },
+      select: {
+        id: true,
+        name: true,
+        rollNo: true,
+        attendance: {
+          select: { status: true }
+        }
+      }
     });
+
+    const atRisk: any[] = [];
+
+    students.forEach((s: any) => {
+      const total = s.attendance.length;
+      if (total > 0) {
+        const present = s.attendance.filter((a: any) => a.status === "PRESENT").length;
+        const rate = (present / total) * 100;
+        if (rate < threshold) {
+          atRisk.push({
+            id: s.id,
+            name: s.name,
+            rollNo: s.rollNo,
+            attendanceRate: `${rate.toFixed(1)}%`,
+            totalClasses: total,
+            presentClasses: present
+          });
+        }
+      }
+    });
+
+    return atRisk;
   }
 
-  async delete(id: string) {
-    return prisma.attendance.delete({
-      where: { id }
+  async getSummaryMetrics(universityId: string | null) {
+    const filter: any = {};
+    if (universityId) {
+      filter.student = {
+        user: { universityId }
+      } as any;
+    }
+
+    const [
+      total,
+      present,
+      absent,
+      late,
+      excused
+    ] = await Promise.all([
+      prisma.attendance.count({ where: filter }),
+      prisma.attendance.count({ where: { ...filter, status: "PRESENT" } }),
+      prisma.attendance.count({ where: { ...filter, status: "ABSENT" } }),
+      prisma.attendance.count({ where: { ...filter, status: "LATE" } }),
+      prisma.attendance.count({ where: { ...filter, status: "EXCUSED" } })
+    ]);
+
+    const activeSessionsCount = await prisma.attendanceSession.count({
+      where: {
+        status: "Active",
+        ...(universityId ? { faculty: { user: { universityId } } as any } : {})
+      }
     });
-  }
 
-  async calculateRate(studentId: string): Promise<number> {
-    const total = await prisma.attendance.count({
-      where: { studentId }
-    });
+    const atRiskCount = (await this.findAtRiskStudents(universityId, 75.0)).length;
 
-    if (total === 0) return 100.0;
-
-    const present = await prisma.attendance.count({
-      where: { studentId, status: AttendanceStatus.PRESENT }
-    });
-
-    return (present / total) * 100;
+    return {
+      totalRecords: total,
+      presentCount: present,
+      absentCount: absent,
+      lateCount: late,
+      excusedCount: excused,
+      activeSessions: activeSessionsCount,
+      atRiskStudentsCount: atRiskCount,
+      overallPresentRate: total > 0 ? `${((present / total) * 100).toFixed(1)}%` : "100.0%"
+    };
   }
 }

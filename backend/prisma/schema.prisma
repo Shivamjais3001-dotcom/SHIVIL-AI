@@ -25,7 +25,11 @@ enum AttendanceStatus {
   PRESENT
   ABSENT
   LATE
-  LEAVE
+  MEDICAL_LEAVE
+  OFFICIAL_LEAVE
+  HOLIDAY
+  CANCELLED
+  EXCUSED
 }
 
 model University {
@@ -144,6 +148,8 @@ model Faculty {
 
   subjects        Subject[]
   schedules       Timetable[]
+  facultyAttendance  FacultyAttendance[]
+  attendanceSessions AttendanceSession[]
 
   @@index([userId])
   @@index([employeeId])
@@ -184,26 +190,78 @@ model Subject {
 
   attendance Attendance[]
   timetables Timetable[]
+  attendanceSessions AttendanceSession[]
 
   @@index([courseId])
   @@index([facultyId])
 }
 
 model Attendance {
-  id         String           @id @default(uuid())
-  date       DateTime
-  status     AttendanceStatus @default(PRESENT)
-  studentId  String
-  student    Student          @relation(fields: [studentId], references: [id])
-  subjectId  String
-  subject    Subject          @relation(fields: [subjectId], references: [id])
-  createdAt  DateTime         @default(now())
-  updatedAt  DateTime         @updatedAt
+  id           String            @id @default(uuid())
+  date         DateTime
+  status       AttendanceStatus  @default(PRESENT)
+  studentId    String
+  student      Student           @relation(fields: [studentId], references: [id])
+  subjectId    String
+  subject      Subject           @relation(fields: [subjectId], references: [id])
+  sessionId    String?
+  session      AttendanceSession? @relation(fields: [sessionId], references: [id])
+  method       String            @default("Manual")
+  remarks      String?
+  metadata     Json?
+  riskLevel    String            @default("Low")
+  examEligible Boolean           @default(true)
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
 
   @@index([studentId])
   @@index([subjectId])
+  @@index([sessionId])
   @@index([date])
   @@index([status])
+}
+
+model AttendanceSession {
+  id         String       @id @default(uuid())
+  subjectId  String
+  subject    Subject      @relation(fields: [subjectId], references: [id])
+  facultyId  String
+  faculty    Faculty      @relation(fields: [facultyId], references: [id])
+  section    String
+  semester   String
+  classroom  String?
+  date       DateTime     @default(now())
+  startTime  String
+  endTime    String
+  status     String       @default("Active")
+  method     String       @default("Manual")
+  qrCode     String?
+  location   Json?
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+
+  attendance Attendance[]
+
+  @@index([subjectId])
+  @@index([facultyId])
+  @@index([date])
+}
+
+model FacultyAttendance {
+  id           String    @id @default(uuid())
+  facultyId    String
+  faculty      Faculty   @relation(fields: [facultyId], references: [id])
+  date         DateTime  @default(now())
+  checkIn      DateTime?
+  checkOut     DateTime?
+  workingHours Float?
+  status       String    @default("Present")
+  metadata     Json?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([facultyId])
+  @@index([date])
 }
 
 model Timetable {
