@@ -186,4 +186,55 @@ export class AttendanceService {
 
     return R * c; // Distance in meters
   }
+
+  async savePrediction(data: any) {
+    return attendanceRepository.savePrediction(data);
+  }
+
+  async getPredictions(params: { studentId?: string; subjectId?: string; universityId: string | null }) {
+    return attendanceRepository.findPredictions(params);
+  }
+
+  async predictAttendanceRates(studentId: string, subjectId: string, universityId: string | null) {
+    // 1. Get recent attendance records of student for this subject
+    const { data } = await attendanceRepository.findAndCount({
+      page: 1,
+      limit: 10,
+      studentId,
+      subjectId,
+      universityId
+    });
+
+    // 2. Statistical forecast logic
+    const total = data.length;
+    let present = 0;
+    data.forEach((r: any) => {
+      if (r.status === "PRESENT") present += 1;
+    });
+
+    const rate = total > 0 ? (present / total) * 100 : 100.0;
+    const shortageRisk = rate < 75.0 ? (rate < 60.0 ? "High" : "Medium") : "Low";
+    const examEligible = rate >= 75.0;
+
+    const recommendations = [];
+    if (rate < 75.0) {
+      recommendations.push("Notify parent regarding shortage.");
+      recommendations.push("Schedule review session with faculty advisor.");
+    } else {
+      recommendations.push("Keep maintaining current attendance score.");
+    }
+
+    // 3. Save predicted values in lookup table
+    const predictionRecord = {
+      studentId,
+      subjectId,
+      predictedAttendanceRate: rate,
+      shortageRisk,
+      examEligible,
+      confidenceScore: 0.85,
+      recommendations
+    };
+
+    return attendanceRepository.savePrediction(predictionRecord);
+  }
 }

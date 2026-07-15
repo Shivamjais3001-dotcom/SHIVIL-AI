@@ -109,6 +109,7 @@ model Student {
   hostelRoom       HostelRoom?
   libraryIssues    LibraryIssue[]
   fees             FeeReceipt[]
+  predictions      AttendancePrediction[]
 
   @@index([rollNo])
   @@index([enrollmentNo])
@@ -191,6 +192,7 @@ model Subject {
   attendance Attendance[]
   timetables Timetable[]
   attendanceSessions AttendanceSession[]
+  predictions AttendancePrediction[]
 
   @@index([courseId])
   @@index([facultyId])
@@ -216,9 +218,29 @@ model Attendance {
 
   @@index([studentId])
   @@index([subjectId])
+  @@index([studentId, subjectId, date])
   @@index([sessionId])
   @@index([date])
   @@index([status])
+}
+
+model AttendancePrediction {
+  id                    String   @id @default(uuid())
+  studentId             String
+  student               Student  @relation(fields: [studentId], references: [id])
+  subjectId             String
+  subject               Subject  @relation(fields: [subjectId], references: [id])
+  predictedAttendanceRate Float
+  shortageRisk          String
+  examEligible          Boolean  @default(true)
+  confidenceScore       Float
+  recommendations       Json?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@index([studentId])
+  @@index([subjectId])
+  @@index([shortageRisk])
 }
 
 model AttendanceSession {

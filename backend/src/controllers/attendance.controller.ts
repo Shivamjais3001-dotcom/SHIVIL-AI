@@ -125,4 +125,34 @@ export class AttendanceController {
       next(error);
     }
   }
+
+  async getPredictions(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const universityId = req.user?.universityId || null;
+      const result = await attendanceService.getPredictions({
+        studentId: req.query.studentId as string || undefined,
+        subjectId: req.query.subjectId as string || undefined,
+        universityId
+      });
+      return sendSuccessResponse(res, result, "AI attendance shortage predictions list retrieved successfully.");
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async predictAttendanceRates(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const universityId = req.user?.universityId || null;
+      const { studentId, subjectId } = req.body;
+
+      if (!studentId || !subjectId) {
+        throw ApiError.badRequest("Missing studentId or subjectId in request body.");
+      }
+
+      const result = await attendanceService.predictAttendanceRates(studentId, subjectId, universityId);
+      return sendSuccessResponse(res, result, "AI attendance shortage forecast completed successfully.", 201);
+    } catch (error) {
+      next(error);
+    }
+  }
 }

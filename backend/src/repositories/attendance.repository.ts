@@ -221,4 +221,30 @@ export class AttendanceRepository {
       overallPresentRate: total > 0 ? `${((present / total) * 100).toFixed(1)}%` : "100.0%"
     };
   }
+
+  async savePrediction(data: any) {
+    return prisma.attendancePrediction.create({
+      data,
+      include: { student: true, subject: true }
+    } as any);
+  }
+
+  async findPredictions(params: { studentId?: string; subjectId?: string; universityId?: string | null }) {
+    const whereClause: any = {};
+    if (params.studentId) {
+      whereClause.studentId = params.studentId;
+    }
+    if (params.subjectId) {
+      whereClause.subjectId = params.subjectId;
+    }
+    if (params.universityId) {
+      whereClause.student = { user: { universityId: params.universityId } } as any;
+    }
+
+    return prisma.attendancePrediction.findMany({
+      where: whereClause,
+      include: { student: true, subject: true },
+      orderBy: { createdAt: "desc" }
+    } as any);
+  }
 }

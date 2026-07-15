@@ -82,4 +82,17 @@ router.post(
   attendanceController.markAttendance
 );
 
+// AI predictions routes
+router.get(
+  "/predictions",
+  authorize("SUPER_ADMIN", "UNIVERSITY_ADMIN", "FACULTY"),
+  attendanceController.getPredictions
+);
+
+router.post(
+  "/predictions",
+  authorize("SUPER_ADMIN", "UNIVERSITY_ADMIN", "FACULTY"),
+  attendanceController.predictAttendanceRates
+);
+
 export default router;

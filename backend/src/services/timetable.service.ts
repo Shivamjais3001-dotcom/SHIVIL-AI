@@ -1,6 +1,6 @@
 import { TimetableRepository } from "../repositories/timetable.repository";
 import { ApiError } from "../utils/api-error";
-import { PaginationParams, buildPaginatedMeta } from "../utils/pagination";
+import { buildPaginatedMeta } from "../utils/pagination";
 
 const timetableRepository = new TimetableRepository();
 
