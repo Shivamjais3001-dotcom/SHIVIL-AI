@@ -115,21 +115,40 @@ model Student {
 }
 
 model Faculty {
-  id         String      @id @default(uuid())
-  userId     String      @unique
-  user       User        @relation(fields: [userId], references: [id])
-  name       String
-  department String
-  specialty  String?
-  createdAt  DateTime    @default(now())
-  updatedAt  DateTime    @updatedAt
-  deletedAt  DateTime?
+  id              String      @id @default(uuid())
+  userId          String      @unique
+  user            User        @relation(fields: [userId], references: [id])
+  employeeId      String?     @unique
+  name            String
+  department      String
+  designation     String      @default("Assistant Professor")
+  joiningDate     DateTime    @default(now())
+  qualification   String      @default("PhD")
+  experienceYears Int         @default(0)
+  status          String      @default("Active")
+  specialty       String?     // Keep for backward compatibility
+  researchArea    String?
 
-  subjects   Subject[]
-  schedules  Timetable[]
+  // Structured JSON fields for workload, leaves, research, and timelines
+  officeInfo      Json?
+  researchModule  Json?
+  workload        Json?
+  leaveManagement Json?
+  performance     Json?
+  documents       Json?
+  timeline        Json?
+
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  deletedAt       DateTime?
+
+  subjects        Subject[]
+  schedules       Timetable[]
 
   @@index([userId])
+  @@index([employeeId])
   @@index([department])
+  @@index([status])
 }
 
 model Department {
