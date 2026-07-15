@@ -63,6 +63,7 @@ model User {
   apiKeys                   ApiKey[]
 
   @@index([email])
+  @@index([universityId])
 }
 
 model Student {
@@ -89,6 +90,8 @@ model Student {
   fees          FeeReceipt[]
 
   @@index([rollNo])
+  @@index([userId])
+  @@index([branch, semester])
 }
 
 model Faculty {
@@ -105,6 +108,7 @@ model Faculty {
   subjects   Subject[]
   schedules  Timetable[]
 
+  @@index([userId])
   @@index([department])
 }
 
@@ -141,6 +145,9 @@ model Subject {
 
   attendance Attendance[]
   timetables Timetable[]
+
+  @@index([courseId])
+  @@index([facultyId])
 }
 
 model Attendance {
@@ -153,6 +160,11 @@ model Attendance {
   subject    Subject          @relation(fields: [subjectId], references: [id])
   createdAt  DateTime         @default(now())
   updatedAt  DateTime         @updatedAt
+
+  @@index([studentId])
+  @@index([subjectId])
+  @@index([date])
+  @@index([status])
 }
 
 model Timetable {
@@ -164,6 +176,9 @@ model Timetable {
   subject    Subject  @relation(fields: [subjectId], references: [id])
   facultyId  String
   faculty    Faculty  @relation(fields: [facultyId], references: [id])
+
+  @@index([subjectId])
+  @@index([facultyId])
 }
 
 model Result {
@@ -173,6 +188,8 @@ model Result {
   examType   String   // e.g. "MID_TERM", "FINAL"
   studentId  String
   student    Student  @relation(fields: [studentId], references: [id])
+
+  @@index([studentId])
 }
 
 model HostelRoom {
@@ -181,6 +198,8 @@ model HostelRoom {
   block     String
   studentId String   @unique
   student   Student  @relation(fields: [studentId], references: [id])
+
+  @@index([studentId])
 }
 
 model LibraryIssue {
@@ -190,6 +209,8 @@ model LibraryIssue {
   returnDate DateTime?
   studentId  String
   student    Student   @relation(fields: [studentId], references: [id])
+
+  @@index([studentId])
 }
 
 model FeeReceipt {
@@ -199,6 +220,9 @@ model FeeReceipt {
   dueDate   DateTime
   studentId String
   student   Student  @relation(fields: [studentId], references: [id])
+
+  @@index([studentId])
+  @@index([status])
 }
 
 model AIConversation {
@@ -209,6 +233,8 @@ model AIConversation {
   context   String?  // Active ERP querying state details
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([userId])
 }
 
 model Notification {
@@ -220,6 +246,8 @@ model Notification {
   user         User     @relation(fields: [userId], references: [id])
   isRead       Boolean  @default(false)
   createdAt    DateTime @default(now())
+
+  @@index([userId])
 }
 
 model Session {
@@ -231,6 +259,8 @@ model Session {
   user         User     @relation(fields: [userId], references: [id])
   expiresAt    DateTime
   createdAt    DateTime @default(now())
+
+  @@index([userId])
 }
 
 model UserSecret {
@@ -238,6 +268,8 @@ model UserSecret {
   userId    String
   secretKey String
   createdAt DateTime @default(now())
+
+  @@index([userId])
 }
 
 model AuditLog {
@@ -248,6 +280,8 @@ model AuditLog {
   userId    String
   user      User     @relation(fields: [userId], references: [id])
   createdAt DateTime @default(now())
+
+  @@index([userId])
 }
 
 model PasswordReset {
@@ -258,6 +292,8 @@ model PasswordReset {
   expiresAt DateTime
   usedAt    DateTime?
   createdAt DateTime  @default(now())
+
+  @@index([userId])
 }
 
 model EmailVerification {
@@ -268,6 +304,8 @@ model EmailVerification {
   expiresAt DateTime
   usedAt    DateTime?
   createdAt DateTime  @default(now())
+
+  @@index([userId])
 }
 
 model ApiKey {
@@ -279,4 +317,6 @@ model ApiKey {
   createdAt  DateTime  @default(now())
   expiresAt  DateTime?
   lastUsedAt DateTime?
+
+  @@index([userId])
 }

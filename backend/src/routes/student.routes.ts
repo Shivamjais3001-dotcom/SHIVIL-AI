@@ -1,18 +1,45 @@
 import { Router } from "express";
 import { StudentController } from "../controllers/student.controller";
-import { authMiddleware } from "../middlewares/auth.middleware";
-import { authorizeRoles } from "../middlewares/role.middleware";
+import { authenticate } from "../middlewares/auth.middleware";
+import { authorize } from "../middlewares/role.middleware";
+import { validate } from "../middlewares/validate.middleware";
+import { createStudentSchema, updateStudentSchema } from "../validators/student.validator";
 
 const router = Router();
 const studentController = new StudentController();
 
-// All students routes require active session JWT authorization
-router.use(authMiddleware);
+// Enforce active session auth on all student operations
+router.use(authenticate);
 
-router.get("/", authorizeRoles("SUPER_ADMIN", "UNIVERSITY_ADMIN", "HOD", "FACULTY"), studentController.getStudents);
-router.get("/:id", studentController.getStudentById);
-router.post("/", authorizeRoles("SUPER_ADMIN", "UNIVERSITY_ADMIN", "HOD"), studentController.createStudent);
-router.put("/:id", authorizeRoles("SUPER_ADMIN", "UNIVERSITY_ADMIN", "HOD"), studentController.updateStudent);
-router.delete("/:id", authorizeRoles("SUPER_ADMIN", "UNIVERSITY_ADMIN"), studentController.deleteStudent);
+router.get(
+  "/", 
+  authorize("SUPER_ADMIN", "UNIVERSITY_ADMIN", "FACULTY"), 
+  studentController.getStudents
+);
+
+router.get(
+  "/:id", 
+  studentController.getStudentById
+);
+
+router.post(
+  "/", 
+  authorize("SUPER_ADMIN", "UNIVERSITY_ADMIN"), 
+  validate(createStudentSchema), 
+  studentController.createStudent
+);
+
+router.put(
+  "/:id", 
+  authorize("SUPER_ADMIN", "UNIVERSITY_ADMIN"), 
+  validate(updateStudentSchema), 
+  studentController.updateStudent
+);
+
+router.delete(
+  "/:id", 
+  authorize("SUPER_ADMIN", "UNIVERSITY_ADMIN"), 
+  studentController.deleteStudent
+);
 
 export default router;

@@ -1,77 +1,70 @@
-import { Request, Response, NextFunction } from "express";
+import { Response, NextFunction } from "express";
 import { StudentService } from "../services/student.service";
-
+import { AuthenticatedRequest } from "../middlewares/auth.middleware";
+import { sendSuccessResponse } from "../utils/response";
+import { parsePaginationParams } from "../utils/pagination";
 
 const studentService = new StudentService();
 
 export class StudentController {
-  async getStudents(req: Request, res: Response, next: NextFunction) {
+  async getStudents(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
-      const { search, branch, semester } = req.query;
-      const result = await studentService.getStudents({
-        search: search as string,
-        branch: branch as string,
-        semester: semester as string
+      const universityId = req.user?.universityId || null;
+      const pagination = parsePaginationParams(req.query, "rollNo");
+      
+      const { data, meta } = await studentService.getStudents({
+        ...pagination,
+        branch: req.query.branch as string || undefined,
+        semester: req.query.semester as string || undefined,
+        universityId
       });
 
-      res.status(200).json({
-        success: true,
-        total: result.length,
-        data: result
-      });
+      return sendSuccessResponse(res, data, "Student catalog retrieved successfully.", 200, meta);
     } catch (error) {
       next(error);
     }
   }
 
-  async getStudentById(req: Request, res: Response, next: NextFunction) {
+  async getStudentById(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
+      const universityId = req.user?.universityId || null;
       const { id } = req.params;
-      const result = await studentService.getStudentById(id);
-      res.status(200).json({
-        success: true,
-        data: result
-      });
+      const result = await studentService.getStudentById(id, universityId);
+
+      return sendSuccessResponse(res, result, "Student details retrieved successfully.");
     } catch (error) {
       next(error);
     }
   }
 
-  async createStudent(req: Request, res: Response, next: NextFunction) {
+  async createStudent(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
       const result = await studentService.createStudent(req.body);
-      res.status(201).json({
-        success: true,
-        message: "Student profile cataloged successfully.",
-        data: result
-      });
+      return sendSuccessResponse(res, result, "Student profile registered successfully.", 210);
     } catch (error) {
       next(error);
     }
   }
 
-  async updateStudent(req: Request, res: Response, next: NextFunction) {
+  async updateStudent(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
+      const universityId = req.user?.universityId || null;
       const { id } = req.params;
-      const result = await studentService.updateStudent(id, req.body);
-      res.status(200).json({
-        success: true,
-        message: "Student record modified successfully.",
-        data: result
-      });
+      const result = await studentService.updateStudent(id, universityId, req.body);
+
+      return sendSuccessResponse(res, result, "Student record modified successfully.");
     } catch (error) {
       next(error);
     }
   }
 
-  async deleteStudent(req: Request, res: Response, next: NextFunction) {
+  async deleteStudent(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
+      const universityId = req.user?.universityId || null;
       const { id } = req.params;
-      await studentService.deleteStudent(id);
-      res.status(200).json({
-        success: true,
-        message: "Student profile removed from registry."
-      });
+      await studentService.deleteStudent(id, universityId);
+
+      return sendSuccessResponse(res, null, "Student profile soft-deleted from registry.");
     } catch (error) {
       next(error);
     }

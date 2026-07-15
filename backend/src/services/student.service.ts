@@ -1,17 +1,22 @@
 import { StudentRepository } from "../repositories/student.repository";
-import { CustomError } from "../utils/custom-error";
+import { ApiError } from "../utils/api-error";
+import { PaginationParams, buildPaginatedMeta } from "../utils/pagination";
 
 const studentRepository = new StudentRepository();
 
 export class StudentService {
-  async getStudents(filters: { search?: string; branch?: string; semester?: string }) {
-    return studentRepository.findAll(filters);
+  async getStudents(
+    params: PaginationParams & { branch?: string; semester?: string; universityId?: string | null }
+  ) {
+    const { total, data } = await studentRepository.findAndCount(params);
+    const meta = buildPaginatedMeta(total, params);
+    return { data, meta };
   }
 
-  async getStudentById(id: string) {
-    const student = await studentRepository.findById(id);
+  async getStudentById(id: string, universityId?: string | null) {
+    const student = await studentRepository.findById(id, universityId);
     if (!student) {
-      throw new CustomError("Student record not found.", 404);
+      throw ApiError.notFound("Student record not found or access unauthorized.");
     }
     return student;
   }
@@ -29,7 +34,7 @@ export class StudentService {
   }) {
     const existing = await studentRepository.findByRoll(data.rollNo);
     if (existing) {
-      throw new CustomError("A student record with this roll number already exists.", 400);
+      throw ApiError.conflict("A student record with this roll number already exists.");
     }
 
     return studentRepository.create(data);
@@ -37,6 +42,7 @@ export class StudentService {
 
   async updateStudent(
     id: string,
+    universityId: string | null,
     data: {
       name?: string;
       branch?: string;
@@ -48,13 +54,14 @@ export class StudentService {
       photoUrl?: string;
     }
   ) {
-    // Check existence
-    await this.getStudentById(id);
+    // Validate existence and tenant ownership
+    await this.getStudentById(id, universityId);
     return studentRepository.update(id, data);
   }
 
-  async deleteStudent(id: string) {
-    await this.getStudentById(id);
+  async deleteStudent(id: string, universityId: string | null) {
+    // Validate existence and tenant ownership
+    await this.getStudentById(id, universityId);
     return studentRepository.delete(id);
   }
 }

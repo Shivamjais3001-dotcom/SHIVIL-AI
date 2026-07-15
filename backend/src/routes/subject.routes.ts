@@ -1,36 +1,36 @@
 import { Router } from "express";
-import { CourseController } from "../controllers/course.controller";
+import { SubjectController } from "../controllers/subject.controller";
 import { authenticate } from "../middlewares/auth.middleware";
 import { authorize } from "../middlewares/role.middleware";
 import { validate } from "../middlewares/validate.middleware";
-import { createCourseSchema, updateCourseSchema } from "../validators/course.validator";
+import { createSubjectSchema, updateSubjectSchema } from "../validators/subject.validator";
 
 const router = Router();
-const courseController = new CourseController();
+const subjectController = new SubjectController();
 
 router.use(authenticate);
 
-router.get("/", courseController.getCourses);
-router.get("/:id", courseController.getCourseById);
+router.get("/", subjectController.getSubjects);
+router.get("/:id", subjectController.getSubjectById);
 
 router.post(
   "/", 
   authorize("SUPER_ADMIN", "UNIVERSITY_ADMIN"), 
-  validate(createCourseSchema), 
-  courseController.createCourse
+  validate(createSubjectSchema), 
+  subjectController.createSubject
 );
 
 router.put(
   "/:id", 
   authorize("SUPER_ADMIN", "UNIVERSITY_ADMIN"), 
-  validate(updateCourseSchema), 
-  courseController.updateCourse
+  validate(updateSubjectSchema), 
+  subjectController.updateSubject
 );
 
 router.delete(
   "/:id", 
   authorize("SUPER_ADMIN", "UNIVERSITY_ADMIN"), 
-  courseController.deleteCourse
+  subjectController.deleteSubject
 );
 
 export default router;

@@ -1,28 +1,17 @@
-import { Request, Response, NextFunction } from "express";
-import prisma from "../config/database";
+import { Response, NextFunction } from "express";
+import { DashboardService } from "../services/dashboard.service";
+import { AuthenticatedRequest } from "../middlewares/auth.middleware";
+import { sendSuccessResponse } from "../utils/response";
+
+const dashboardService = new DashboardService();
 
 export class DashboardController {
-  async getMetrics(req: Request, res: Response, next: NextFunction) {
+  async getMetrics(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
-      const [studentsCount, facultyCount, coursesCount, attendanceCount] = await Promise.all([
-        prisma.student.count({ where: { deletedAt: null } }),
-        prisma.faculty.count({ where: { deletedAt: null } }),
-        prisma.course.count(),
-        prisma.attendance.count()
-      ]);
+      const universityId = req.user?.universityId || null;
+      const result = await dashboardService.getMetrics(universityId);
 
-      res.status(200).json({
-        success: true,
-        data: {
-          activeStudents: studentsCount || 0,
-          activeFaculty: facultyCount || 0,
-          totalCourses: coursesCount || 0,
-          totalAttendanceLogs: attendanceCount || 0,
-          averages: {
-            attendanceRate: "88.5%"
-          }
-        }
-      });
+      return sendSuccessResponse(res, result, "Real-time university ERP dashboard metrics aggregated successfully.");
     } catch (error) {
       next(error);
     }

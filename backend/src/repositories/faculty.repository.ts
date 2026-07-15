@@ -1,29 +1,13 @@
 import prisma from "../config/database";
 
-export class StudentRepository {
+export class FacultyRepository {
   async findById(id: string, universityId?: string | null) {
     const whereClause: any = { id, deletedAt: null };
     if (universityId) {
       whereClause.user = { universityId };
     }
 
-    return prisma.student.findFirst({
-      where: whereClause,
-      include: {
-        user: {
-          select: { email: true, role: true, universityId: true }
-        }
-      }
-    });
-  }
-
-  async findByRoll(rollNo: string, universityId?: string | null) {
-    const whereClause: any = { rollNo, deletedAt: null };
-    if (universityId) {
-      whereClause.user = { universityId };
-    }
-
-    return prisma.student.findFirst({
+    return prisma.faculty.findFirst({
       where: whereClause,
       include: {
         user: {
@@ -39,18 +23,13 @@ export class StudentRepository {
     sort: string;
     order: "asc" | "desc";
     search: string;
-    branch?: string;
-    semester?: string;
+    department?: string;
     universityId?: string | null;
   }) {
     const whereClause: any = { deletedAt: null };
 
-    if (params.branch) {
-      whereClause.branch = params.branch;
-    }
-
-    if (params.semester) {
-      whereClause.semester = params.semester;
+    if (params.department) {
+      whereClause.department = params.department;
     }
 
     if (params.universityId) {
@@ -60,14 +39,13 @@ export class StudentRepository {
     if (params.search) {
       whereClause.OR = [
         { name: { contains: params.search, mode: "insensitive" } },
-        { rollNo: { contains: params.search, mode: "insensitive" } }
+        { department: { contains: params.search, mode: "insensitive" } }
       ];
     }
 
-    // Execute count and data queries in a single database transaction
     const [total, data] = await prisma.$transaction([
-      prisma.student.count({ where: whereClause }),
-      prisma.student.findMany({
+      prisma.faculty.count({ where: whereClause }),
+      prisma.faculty.findMany({
         where: whereClause,
         orderBy: { [params.sort]: params.order },
         skip: (params.page - 1) * params.limit,
@@ -85,16 +63,11 @@ export class StudentRepository {
 
   async create(data: {
     userId: string;
-    rollNo: string;
     name: string;
-    branch: string;
-    semester: string;
-    academicYear: string;
-    parentName?: string;
-    parentContact?: string;
-    photoUrl?: string;
+    department: string;
+    specialty?: string;
   }) {
-    return prisma.student.create({
+    return prisma.faculty.create({
       data,
       include: {
         user: {
@@ -108,16 +81,11 @@ export class StudentRepository {
     id: string,
     data: {
       name?: string;
-      branch?: string;
-      semester?: string;
-      academicYear?: string;
-      status?: string;
-      parentName?: string;
-      parentContact?: string;
-      photoUrl?: string;
+      department?: string;
+      specialty?: string;
     }
   ) {
-    return prisma.student.update({
+    return prisma.faculty.update({
       where: { id },
       data,
       include: {
@@ -129,7 +97,7 @@ export class StudentRepository {
   }
 
   async delete(id: string) {
-    return prisma.student.update({
+    return prisma.faculty.update({
       where: { id },
       data: { deletedAt: new Date() }
     });
