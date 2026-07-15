@@ -64,17 +64,41 @@ export class AcademicService {
     // Enforce database level transaction boundary
     return prisma.$transaction(async (tx) => {
       // 1. Get Offering and current enrollments count
-      const offering = await tx.courseOffering.findUnique({
+      const offering = await (tx as any).courseOffering.findUnique({
         where: { id: offeringId },
-        include: { _count: { select: { enrollments: true } } }
+        include: { subject: true, _count: { select: { enrollments: true } } }
       } as any);
 
       if (!offering) {
         throw ApiError.notFound("Course offering not found.");
       }
 
+      // 2. Prerequisite checking
+      const subject = (offering as any).subject;
+      if (subject && subject.prerequisites && Array.isArray(subject.prerequisites)) {
+        const prereqs = subject.prerequisites as string[];
+        if (prereqs.length > 0) {
+          const passed = await (tx as any).result.findMany({
+            where: {
+              studentId,
+              grade: { notIn: ["F", "FAIL"] }
+            },
+            include: { subject: true }
+          } as any);
+
+          const passedCodes = passed.map((p: any) => p.subject?.code);
+          for (const reqCode of prereqs) {
+            if (!passedCodes.includes(reqCode)) {
+              throw ApiError.badRequest(
+                `Prerequisite validation failed. Student has not passed the required prerequisite course: ${reqCode}`
+              );
+            }
+          }
+        }
+      }
+
       // Check if student is already enrolled
-      const existing = await tx.enrollment.findFirst({
+      const existing = await (tx as any).enrollment.findFirst({
         where: { studentId, offeringId, status: "ENROLLED" }
       } as any);
 
@@ -82,7 +106,7 @@ export class AcademicService {
         throw ApiError.conflict("Student is already enrolled in this course offering.");
       }
 
-      const activeEnrollCount = await tx.enrollment.count({
+      const activeEnrollCount = await (tx as any).enrollment.count({
         where: { offeringId, status: "ENROLLED" }
       } as any);
 
@@ -91,7 +115,7 @@ export class AcademicService {
         status = "WAITLISTED";
       }
 
-      const enrollmentRecord = await tx.enrollment.create({
+      const enrollmentRecord = await (tx as any).enrollment.create({
         data: {
           studentId,
           offeringId,
@@ -107,7 +131,7 @@ export class AcademicService {
   async dropStudent(studentId: string, offeringId: string) {
     return prisma.$transaction(async (tx) => {
       // 1. Find the student's active enrollment
-      const activeEnroll = await tx.enrollment.findFirst({
+      const activeEnroll = await (tx as any).enrollment.findFirst({
         where: { studentId, offeringId, status: "ENROLLED" }
       } as any);
 
@@ -116,19 +140,19 @@ export class AcademicService {
       }
 
       // 2. Mark dropped
-      await tx.enrollment.update({
+      await (tx as any).enrollment.update({
         where: { id: (activeEnroll as any).id },
         data: { status: "DROPPED" }
       } as any);
 
       // 3. Automated Waitlist promotion
-      const nextInWaitlist = await tx.enrollment.findFirst({
+      const nextInWaitlist = await (tx as any).enrollment.findFirst({
         where: { offeringId, status: "WAITLISTED" },
         orderBy: { createdAt: "asc" } // FIFO: First-in, first-out waitlist queue
       } as any);
 
       if (nextInWaitlist) {
-        await tx.enrollment.update({
+        await (tx as any).enrollment.update({
           where: { id: (nextInWaitlist as any).id },
           data: { status: "ENROLLED" }
         } as any);
@@ -179,18 +203,18 @@ export class AcademicService {
       offeringsCount,
       enrollmentsCount
     ] = await Promise.all([
-      prisma.program.count({ where: filter } as any),
-      prisma.classroom.count({ where: filter } as any),
-      prisma.courseOffering.count({
+      (prisma as any).program.count({ where: filter } as any),
+      (prisma as any).classroom.count({ where: filter } as any),
+      (prisma as any).courseOffering.count({
         where: universityId ? { subject: { course: { universityId } } as any } : {}
       } as any),
-      prisma.enrollment.count({
+      (prisma as any).enrollment.count({
         where: universityId ? { student: { user: { universityId } } as any } : {}
       } as any)
     ]);
 
     // Room utilization rate: count classrooms with at least one active offering
-    const activeRoomsCount = await prisma.classroom.count({
+    const activeRoomsCount = await (prisma as any).classroom.count({
       where: {
         ...filter,
         offerings: { some: {} }

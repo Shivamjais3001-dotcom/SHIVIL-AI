@@ -181,24 +181,32 @@ model Course {
 }
 
 model Subject {
-  id         String      @id @default(uuid())
-  code       String      @unique
-  name       String
-  courseId   String
-  course     Course      @relation(fields: [courseId], references: [id])
-  facultyId  String?
-  faculty    Faculty?    @relation(fields: [facultyId], references: [id])
-  createdAt  DateTime    @default(now())
-  updatedAt  DateTime    @updatedAt
+  id              String      @id @default(uuid())
+  code            String      @unique
+  name            String
+  courseId        String
+  course          Course      @relation(fields: [courseId], references: [id])
+  facultyId       String?
+  faculty         Faculty?    @relation(fields: [facultyId], references: [id])
+  type            String      @default("CORE") // CORE, ELECTIVE
+  
+  // Curriculum configuration JSONs for advanced mapping and version control
+  prerequisites   Json?
+  corequisites    Json?
+  syllabusDetails Json? // { theoryCredits, practicalCredits, outcomes, version }
 
-  attendance Attendance[]
-  timetables Timetable[]
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  attendance      Attendance[]
+  timetables      Timetable[]
   attendanceSessions AttendanceSession[]
-  predictions AttendancePrediction[]
-  offerings CourseOffering[]
+  predictions     AttendancePrediction[]
+  offerings       CourseOffering[]
 
   @@index([courseId])
   @@index([facultyId])
+  @@index([type])
 }
 
 model Attendance {

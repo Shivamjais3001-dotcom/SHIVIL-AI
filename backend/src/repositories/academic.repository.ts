@@ -2,13 +2,13 @@ import prisma from "../config/database";
 
 export class ProgramRepository {
   async create(data: any) {
-    return prisma.program.create({
+    return (prisma as any).program.create({
       data
     } as any);
   }
 
   async findById(id: string) {
-    return prisma.program.findUnique({
+    return (prisma as any).program.findUnique({
       where: { id }
     } as any);
   }
@@ -20,8 +20,8 @@ export class ProgramRepository {
     }
 
     const [total, data] = await prisma.$transaction([
-      prisma.program.count({ where: whereClause } as any),
-      prisma.program.findMany({
+      (prisma as any).program.count({ where: whereClause } as any),
+      (prisma as any).program.findMany({
         where: whereClause,
         skip: (params.page - 1) * params.limit,
         take: params.limit,
@@ -35,13 +35,13 @@ export class ProgramRepository {
 
 export class ClassroomRepository {
   async create(data: any) {
-    return prisma.classroom.create({
+    return (prisma as any).classroom.create({
       data
     } as any);
   }
 
   async findById(id: string) {
-    return prisma.classroom.findUnique({
+    return (prisma as any).classroom.findUnique({
       where: { id }
     } as any);
   }
@@ -53,8 +53,8 @@ export class ClassroomRepository {
     }
 
     const [total, data] = await prisma.$transaction([
-      prisma.classroom.count({ where: whereClause } as any),
-      prisma.classroom.findMany({
+      (prisma as any).classroom.count({ where: whereClause } as any),
+      (prisma as any).classroom.findMany({
         where: whereClause,
         skip: (params.page - 1) * params.limit,
         take: params.limit,
@@ -68,14 +68,14 @@ export class ClassroomRepository {
 
 export class CourseOfferingRepository {
   async create(data: any) {
-    return prisma.courseOffering.create({
+    return (prisma as any).courseOffering.create({
       data,
       include: { subject: true, faculty: true, classroom: true }
     } as any);
   }
 
   async findById(id: string) {
-    return prisma.courseOffering.findUnique({
+    return (prisma as any).courseOffering.findUnique({
       where: { id },
       include: {
         subject: { include: { course: true } },
@@ -115,8 +115,8 @@ export class CourseOfferingRepository {
     }
 
     const [total, data] = await prisma.$transaction([
-      prisma.courseOffering.count({ where: whereClause } as any),
-      prisma.courseOffering.findMany({
+      (prisma as any).courseOffering.count({ where: whereClause } as any),
+      (prisma as any).courseOffering.findMany({
         where: whereClause,
         skip: (params.page - 1) * params.limit,
         take: params.limit,
@@ -134,7 +134,7 @@ export class CourseOfferingRepository {
   }
 
   async updateStatus(id: string, status: string) {
-    return prisma.courseOffering.update({
+    return (prisma as any).courseOffering.update({
       where: { id },
       data: { status }
     } as any);
@@ -143,26 +143,26 @@ export class CourseOfferingRepository {
 
 export class EnrollmentRepository {
   async create(data: any) {
-    return prisma.enrollment.create({
+    return (prisma as any).enrollment.create({
       data,
       include: { student: true, offering: { include: { subject: true } } }
     } as any);
   }
 
   async findById(id: string) {
-    return prisma.enrollment.findUnique({
+    return (prisma as any).enrollment.findUnique({
       where: { id }
     } as any);
   }
 
   async findActiveEnrollment(studentId: string, offeringId: string) {
-    return prisma.enrollment.findFirst({
+    return (prisma as any).enrollment.findFirst({
       where: { studentId, offeringId, status: "ENROLLED" }
     } as any);
   }
 
   async updateStatus(id: string, status: string) {
-    return prisma.enrollment.update({
+    return (prisma as any).enrollment.update({
       where: { id },
       data: { status }
     } as any);
@@ -190,8 +190,8 @@ export class EnrollmentRepository {
     }
 
     const [total, data] = await prisma.$transaction([
-      prisma.enrollment.count({ where: whereClause } as any),
-      prisma.enrollment.findMany({
+      (prisma as any).enrollment.count({ where: whereClause } as any),
+      (prisma as any).enrollment.findMany({
         where: whereClause,
         skip: (params.page - 1) * params.limit,
         take: params.limit,
@@ -209,7 +209,7 @@ export class EnrollmentRepository {
 
 export class AcademicCalendarRepository {
   async create(data: any) {
-    return prisma.academicCalendar.create({
+    return (prisma as any).academicCalendar.create({
       data
     } as any);
   }
@@ -221,8 +221,8 @@ export class AcademicCalendarRepository {
     }
 
     const [total, data] = await prisma.$transaction([
-      prisma.academicCalendar.count({ where: whereClause } as any),
-      prisma.academicCalendar.findMany({
+      (prisma as any).academicCalendar.count({ where: whereClause } as any),
+      (prisma as any).academicCalendar.findMany({
         where: whereClause,
         skip: (params.page - 1) * params.limit,
         take: params.limit,
