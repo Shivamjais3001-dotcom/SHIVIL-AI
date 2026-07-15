@@ -1,20 +1,47 @@
 import { z } from "zod";
 
-// In case the prisma client isn't generated yet during lint/build, we can fallback to standard arrays
-const roleEnum = z.enum(["SUPER_ADMIN", "UNIVERSITY_ADMIN", "HOD", "FACULTY", "STUDENT", "PARENT"]);
+export const roleEnum = z.enum([
+  "SUPER_ADMIN",
+  "UNIVERSITY_ADMIN",
+  "HOD",
+  "FACULTY",
+  "STUDENT",
+  "ACCOUNTANT",
+  "LIBRARIAN",
+  "EXAM_CONTROLLER",
+  "PLACEMENT_OFFICER",
+  "HOSTEL_ADMIN",
+  "PARENT"
+]);
 
-export const registerSchema = z.object({
+export const registerUniversitySchema = z.object({
   body: z.object({
-    email: z.string({ required_error: "Email is required" }).email("Invalid email address format"),
+    name: z.string({ required_error: "University name is required" }).min(3, "Name must be at least 3 characters"),
+    domain: z.string({ required_error: "Domain is required" }).min(3, "Domain must be at least 3 characters"),
+    adminEmail: z.string({ required_error: "Admin email is required" }).email("Invalid admin email format"),
+    adminPassword: z.string({ required_error: "Admin password is required" }).min(6, "Password must be at least 6 characters")
+  })
+});
+
+export const registerAdminSchema = z.object({
+  body: z.object({
+    email: z.string({ required_error: "Email is required" }).email("Invalid email format"),
     password: z.string({ required_error: "Password is required" }).min(6, "Password must be at least 6 characters"),
-    role: roleEnum.default("STUDENT")
+    universityId: z.string({ required_error: "University ID is required" }).uuid("Invalid university ID"),
+    role: roleEnum.default("UNIVERSITY_ADMIN")
   })
 });
 
 export const loginSchema = z.object({
   body: z.object({
-    email: z.string({ required_error: "Email is required" }).email("Invalid email address format"),
+    email: z.string({ required_error: "Email is required" }).email("Invalid email format"),
     password: z.string({ required_error: "Password is required" })
+  })
+});
+
+export const forgotPasswordSchema = z.object({
+  body: z.object({
+    email: z.string({ required_error: "Email is required" }).email("Invalid email format")
   })
 });
 
@@ -24,3 +51,17 @@ export const resetPasswordSchema = z.object({
     newPassword: z.string({ required_error: "New password is required" }).min(6, "Password must be at least 6 characters")
   })
 });
+
+export const changePasswordSchema = z.object({
+  body: z.object({
+    oldPassword: z.string({ required_error: "Old password is required" }),
+    newPassword: z.string({ required_error: "New password is required" }).min(6, "Password must be at least 6 characters")
+  })
+});
+
+export const verifyEmailSchema = z.object({
+  body: z.object({
+    token: z.string({ required_error: "Verification token is required" })
+  })
+});
+

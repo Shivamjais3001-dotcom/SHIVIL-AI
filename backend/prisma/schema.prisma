@@ -13,6 +13,11 @@ enum Role {
   HOD
   FACULTY
   STUDENT
+  ACCOUNTANT
+  LIBRARIAN
+  EXAM_CONTROLLER
+  PLACEMENT_OFFICER
+  HOSTEL_ADMIN
   PARENT
 }
 
@@ -23,22 +28,39 @@ enum AttendanceStatus {
   LEAVE
 }
 
+model University {
+  id        String    @id @default(uuid())
+  name      String    @unique
+  domain    String    @unique
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  users     User[]
+}
+
 model User {
-  id           String        @id @default(uuid())
-  email        String        @unique
-  passwordHash String
-  role         Role          @default(STUDENT)
-  isVerified   Boolean       @default(false)
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
-  deletedAt    DateTime?
+  id                        String              @id @default(uuid())
+  email                     String              @unique
+  passwordHash              String
+  role                      Role                @default(STUDENT)
+  isVerified                Boolean             @default(false)
+  createdAt                 DateTime            @default(now())
+  updatedAt                 DateTime            @updatedAt
+  deletedAt                 DateTime?
   
-  student      Student?
-  faculty      Faculty?
-  notifications Notification[]
-  sessions     Session[]
-  auditLogs    AuditLog[]
-  aiConversations AIConversation[]
+  universityId              String?
+  university                University?         @relation(fields: [universityId], references: [id], onDelete: SetNull)
+
+  student                   Student?
+  faculty                   Faculty?
+  notifications             Notification[]
+  sessions                  Session[]
+  auditLogs                 AuditLog[]
+  aiConversations           AIConversation[]
+  passwordResets            PasswordReset[]
+  emailVerifications        EmailVerification[]
+  apiKeys                   ApiKey[]
 
   @@index([email])
 }
@@ -226,4 +248,35 @@ model AuditLog {
   userId    String
   user      User     @relation(fields: [userId], references: [id])
   createdAt DateTime @default(now())
+}
+
+model PasswordReset {
+  id        String    @id @default(uuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+}
+
+model EmailVerification {
+  id        String    @id @default(uuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+}
+
+model ApiKey {
+  id         String    @id @default(uuid())
+  name       String
+  key        String    @unique
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt  DateTime  @default(now())
+  expiresAt  DateTime?
+  lastUsedAt DateTime?
 }

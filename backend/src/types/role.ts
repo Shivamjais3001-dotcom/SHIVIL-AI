@@ -1,1 +1,13 @@
-export type Role = "SUPER_ADMIN" | "UNIVERSITY_ADMIN" | "HOD" | "FACULTY" | "STUDENT" | "PARENT";
+export type Role =
+  | "SUPER_ADMIN"
+  | "UNIVERSITY_ADMIN"
+  | "HOD"
+  | "FACULTY"
+  | "STUDENT"
+  | "ACCOUNTANT"
+  | "LIBRARIAN"
+  | "EXAM_CONTROLLER"
+  | "PLACEMENT_OFFICER"
+  | "HOSTEL_ADMIN"
+  | "PARENT";
+

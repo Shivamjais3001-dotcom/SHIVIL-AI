@@ -1,6 +1,7 @@
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
+import cookieParser from "cookie-parser";
 import { rateLimit } from "express-rate-limit";
 
 // Route imports
@@ -14,11 +15,16 @@ import dashboardRoutes from "./routes/dashboard.routes";
 
 // Middlewares
 import { errorMiddleware } from "./middlewares/error.middleware";
+import { responseNormalizer } from "./middlewares/response.middleware";
 
 const app = express();
 
+// Mounting global response formatter normalizer first
+app.use(responseNormalizer);
+
 // Security Middlewares configuration
 app.use(helmet());
+app.use(cookieParser());
 app.use(cors({
   origin: process.env.CORS_ORIGIN || "*",
   credentials: true

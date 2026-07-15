@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import { StudentService } from "../services/student.service";
-import { AuthenticatedRequest } from "../middlewares/auth.middleware";
+
 
 const studentService = new StudentService();
 

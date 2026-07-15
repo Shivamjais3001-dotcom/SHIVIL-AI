@@ -1,61 +1,149 @@
 import bcrypt from "bcryptjs";
+import crypto from "crypto";
 import { UserRepository } from "../repositories/user.repository";
-import { signAccessToken, signRefreshToken, verifyRefreshToken } from "../utils/jwt";
-import { CustomError } from "../utils/custom-error";
+import { signAccessToken, signRefreshToken, verifyRefreshToken, TokenPayload } from "../utils/jwt";
+import { ApiError } from "../utils/api-error";
 import { Role } from "../types/role";
 
 const userRepository = new UserRepository();
 
+// Cryptographic token helper to prevent plaintext exposure in Database
+function hashToken(token: string): string {
+  return crypto.createHash("sha256").update(token).digest("hex");
+}
+
 export class AuthService {
-  async register(email: string, password: string, role: Role) {
-    const existingUser = await userRepository.findByEmail(email);
-    if (existingUser) {
-      throw new CustomError("A user with this email address already exists.", 400);
+  // --- UNIVERSITY & ADMIN REGISTRATION (TENANCY SEPARATION) ---
+  async registerUniversity(data: { name: string; domain: string; adminEmail: string; adminPassword?: string }) {
+    const existingName = await userRepository.findUniversityByName(data.name);
+    if (existingName) {
+      throw ApiError.conflict("A university with this name is already registered.");
     }
 
-    const passwordHash = await bcrypt.hash(password, 12);
-    const user = await userRepository.create({
-      email,
-      passwordHash,
-      role
+    const existingDomain = await userRepository.findUniversityByDomain(data.domain);
+    if (existingDomain) {
+      throw ApiError.conflict("A university with this domain is already registered.");
+    }
+
+    const existingUser = await userRepository.findByEmail(data.adminEmail);
+    if (existingUser) {
+      throw ApiError.conflict("An account with this email address already exists.");
+    }
+
+    const university = await userRepository.createUniversity({
+      name: data.name,
+      domain: data.domain
     });
 
+    const passwordHash = await bcrypt.hash(data.adminPassword || "DefaultAdmin123!", 12);
+    const adminUser = await userRepository.create({
+      email: data.adminEmail,
+      passwordHash,
+      role: "UNIVERSITY_ADMIN",
+      universityId: university.id
+    });
+
+    // Create & hash verification token
+    const rawToken = crypto.randomBytes(32).toString("hex");
+    const hashedToken = hashToken(rawToken);
+    const expiresAt = new Date();
+    expiresAt.setHours(expiresAt.getHours() + 24);
+
+    await userRepository.createEmailVerification({
+      userId: adminUser.id,
+      token: hashedToken,
+      expiresAt
+    });
+
+    console.log(`[MAILER MOCK] Verification link for ${data.adminEmail}: http://localhost:5000/api/auth/verify-email?token=${rawToken}`);
+
     await userRepository.createAuditLog({
-      action: "USER_REGISTER",
-      userId: user.id,
-      details: { role }
+      action: "UNIVERSITY_REGISTERED",
+      userId: adminUser.id,
+      details: { universityId: university.id, universityName: university.name }
     });
 
     return {
-      userId: user.id,
-      email: user.email,
-      role: user.role
+      university,
+      admin: {
+        id: adminUser.id,
+        email: adminUser.email,
+        role: adminUser.role,
+        isVerified: adminUser.isVerified
+      }
     };
   }
 
-  async login(data: {
-    email: string;
-    password: string;
-    ipAddress?: string;
-    userAgent?: string;
-  }) {
+  async registerAdmin(data: { email: string; passwordHash: string; role: Role; universityId: string }) {
+    const university = await userRepository.findUniversityById(data.universityId);
+    if (!university) {
+      throw ApiError.notFound("Target university tenant not found.");
+    }
+
+    const existingUser = await userRepository.findByEmail(data.email);
+    if (existingUser) {
+      throw ApiError.conflict("A user with this email address already exists.");
+    }
+
+    const passwordHash = await bcrypt.hash(data.passwordHash, 12);
+    const user = await userRepository.create({
+      email: data.email,
+      passwordHash,
+      role: data.role,
+      universityId: data.universityId
+    });
+
+    const rawToken = crypto.randomBytes(32).toString("hex");
+    const hashedToken = hashToken(rawToken);
+    const expiresAt = new Date();
+    expiresAt.setHours(expiresAt.getHours() + 24);
+
+    await userRepository.createEmailVerification({
+      userId: user.id,
+      token: hashedToken,
+      expiresAt
+    });
+
+    console.log(`[MAILER MOCK] Verification link for ${data.email}: http://localhost:5000/api/auth/verify-email?token=${rawToken}`);
+
+    await userRepository.createAuditLog({
+      action: "USER_REGISTERED",
+      userId: user.id,
+      details: { role: user.role, universityId: (user as any).universityId }
+    });
+
+    return {
+      id: user.id,
+      email: user.email,
+      role: user.role,
+      universityId: (user as any).universityId,
+      isVerified: user.isVerified
+    };
+  }
+
+  // --- LOGIN ---
+  async login(data: { email: string; passwordHash: string; ipAddress?: string; userAgent?: string }) {
     const user = await userRepository.findByEmail(data.email);
     if (!user) {
-      throw new CustomError("Incorrect email or password credentials.", 401);
+      throw ApiError.unauthorized("Incorrect email or password credentials.");
     }
 
-    const passwordMatch = await bcrypt.compare(data.password, user.passwordHash);
+    const passwordMatch = await bcrypt.compare(data.passwordHash, user.passwordHash);
     if (!passwordMatch) {
-      throw new CustomError("Incorrect email or password credentials.", 401);
+      throw ApiError.unauthorized("Incorrect email or password credentials.");
     }
 
-    const payload = { userId: user.id, role: user.role };
+    const payload: TokenPayload = {
+      userId: user.id,
+      role: user.role,
+      universityId: (user as any).universityId
+    };
+
     const accessToken = signAccessToken(payload);
     const refreshToken = signRefreshToken(payload);
 
-    // Save refresh session in PostgreSQL database
     const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + 7); // 7 days expiration
+    expiresAt.setDate(expiresAt.getDate() + 7);
 
     await userRepository.createSession({
       refreshToken,
@@ -68,38 +156,74 @@ export class AuthService {
     await userRepository.createAuditLog({
       action: "USER_LOGIN",
       userId: user.id,
-      ipAddress: data.ipAddress
+      ipAddress: data.ipAddress,
+      details: { userAgent: data.userAgent }
     });
 
     return {
       user: {
         id: user.id,
         email: user.email,
-        role: user.role
+        role: user.role,
+        universityId: (user as any).universityId,
+        universityName: (user as any).university?.name || null,
+        isVerified: user.isVerified
       },
       accessToken,
       refreshToken
     };
   }
 
-  async refresh(refreshToken: string, ipAddress?: string) {
+  // --- TOKEN ROTATION ---
+  async refresh(refreshToken: string, ipAddress?: string, userAgent?: string) {
+    let decoded: TokenPayload;
+    try {
+      decoded = verifyRefreshToken(refreshToken);
+    } catch {
+      throw ApiError.unauthorized("Invalid or expired refresh token. Please sign in again.");
+    }
+
     const session = await userRepository.findSessionByToken(refreshToken);
+
     if (!session) {
-      throw new CustomError("Active session not found. Please log in again.", 401);
+      await userRepository.deleteSessionsByUserId(decoded.userId);
+      throw ApiError.unauthorized("Compromised session token detected. Access revoked across all devices.");
     }
 
     if (new Date() > session.expiresAt) {
       await userRepository.deleteSession(refreshToken);
-      throw new CustomError("Session has expired. Please log in again.", 401);
+      throw ApiError.unauthorized("Session expired. Please log in again.");
     }
 
-    const decoded = verifyRefreshToken(refreshToken);
-    const payload = { userId: decoded.userId, role: decoded.role };
-    const accessToken = signAccessToken(payload);
+    await userRepository.deleteSession(refreshToken);
 
-    return { accessToken };
+    const payload: TokenPayload = {
+      userId: (session as any).user.id,
+      role: (session as any).user.role,
+      universityId: (session as any).user.universityId
+    };
+
+    const newAccessToken = signAccessToken(payload);
+    const newRefreshToken = signRefreshToken(payload);
+
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 7);
+
+    await userRepository.createSession({
+      refreshToken: newRefreshToken,
+      userId: (session as any).user.id,
+      expiresAt,
+      ipAddress: ipAddress || session.ipAddress || undefined,
+      userAgent: userAgent || session.userAgent || undefined
+    });
+
+    return {
+      accessToken: newAccessToken,
+      refreshToken: newRefreshToken
+    };
   }
 
+  // --- LOGOUT ---
   async logout(refreshToken: string) {
     try {
       const session = await userRepository.findSessionByToken(refreshToken);
@@ -110,8 +234,178 @@ export class AuthService {
           userId: session.userId
         });
       }
-    } catch (err) {
-      throw new CustomError("Error logging out session.", 500);
+    } catch {
+      throw ApiError.internal("Error logging out session.");
     }
+  }
+
+  // --- FORGOT & RESET PASSWORD ---
+  async forgotPassword(email: string) {
+    const user = await userRepository.findByEmail(email);
+    if (!user) {
+      console.log(`[SECURITY] Forgot password requested for non-existent email: ${email}`);
+      return;
+    }
+
+    const rawToken = crypto.randomBytes(32).toString("hex");
+    const hashedToken = hashToken(rawToken);
+    const expiresAt = new Date();
+    expiresAt.setHours(expiresAt.getHours() + 1);
+
+    await userRepository.createPasswordReset({
+      userId: user.id,
+      token: hashedToken,
+      expiresAt
+    });
+
+    console.log(`[MAILER MOCK] Password reset link for ${email}: http://localhost:5000/api/auth/reset-password?token=${rawToken}`);
+
+    await userRepository.createAuditLog({
+      action: "USER_FORGOT_PASSWORD_REQUEST",
+      userId: user.id
+    });
+  }
+
+  async resetPassword(token: string, newPasswordHash: string) {
+    const hashedToken = hashToken(token);
+    const resetRecord = await userRepository.findPasswordResetByToken(hashedToken);
+    if (!resetRecord) {
+      throw ApiError.unauthorized("Invalid password reset token.");
+    }
+
+    if (resetRecord.usedAt) {
+      throw ApiError.badRequest("This password reset token has already been used.");
+    }
+
+    if (new Date() > resetRecord.expiresAt) {
+      throw ApiError.badRequest("This password reset token has expired.");
+    }
+
+    const passwordHash = await bcrypt.hash(newPasswordHash, 12);
+    await userRepository.update(resetRecord.userId, { passwordHash });
+    await userRepository.markPasswordResetUsed(hashedToken);
+
+    await userRepository.deleteSessionsByUserId(resetRecord.userId);
+
+    await userRepository.createAuditLog({
+      action: "USER_PASSWORD_RESET_SUCCESS",
+      userId: resetRecord.userId
+    });
+  }
+
+  // --- EMAIL VERIFICATION ---
+  async verifyEmail(token: string) {
+    const hashedToken = hashToken(token);
+    const verificationRecord = await userRepository.findEmailVerificationByToken(hashedToken);
+    if (!verificationRecord) {
+      throw ApiError.unauthorized("Invalid email verification token.");
+    }
+
+    if (verificationRecord.usedAt) {
+      throw ApiError.badRequest("This verification token has already been used.");
+    }
+
+    if (new Date() > verificationRecord.expiresAt) {
+      throw ApiError.badRequest("This verification token has expired.");
+    }
+
+    await userRepository.update(verificationRecord.userId, { isVerified: true });
+    await userRepository.markEmailVerificationUsed(hashedToken);
+
+    await userRepository.createAuditLog({
+      action: "USER_EMAIL_VERIFIED_SUCCESS",
+      userId: verificationRecord.userId
+    });
+  }
+
+  // --- CHANGE PASSWORD ---
+  async changePassword(userId: string, data: { oldPasswordHash: string; newPasswordHash: string }) {
+    const user = await userRepository.findById(userId);
+    if (!user) {
+      throw ApiError.notFound("User account not found.");
+    }
+
+    const passwordMatch = await bcrypt.compare(data.oldPasswordHash, user.passwordHash);
+    if (!passwordMatch) {
+      throw ApiError.unauthorized("Invalid original password credentials.");
+    }
+
+    const passwordHash = await bcrypt.hash(data.newPasswordHash, 12);
+    await userRepository.update(userId, { passwordHash });
+
+    await userRepository.deleteSessionsByUserId(userId);
+
+    await userRepository.createAuditLog({
+      action: "USER_PASSWORD_CHANGE_SUCCESS",
+      userId
+    });
+  }
+
+  // --- SESSION AUDITING & REVOCATION ---
+  async getSessions(userId: string) {
+    const sessions = await userRepository.findSessionsByUserId(userId);
+    return sessions.map(s => ({
+      id: s.id,
+      ipAddress: s.ipAddress,
+      userAgent: s.userAgent,
+      expiresAt: s.expiresAt,
+      createdAt: s.createdAt
+    }));
+  }
+
+  async revokeSession(userId: string, sessionId: string) {
+    const session = await userRepository.findSessionById(sessionId);
+    if (!session) {
+      throw ApiError.notFound("Session not found.");
+    }
+    if (session.userId !== userId) {
+      throw ApiError.forbidden("Access forbidden. Cannot revoke another user's session.");
+    }
+    await userRepository.deleteSessionById(sessionId);
+  }
+
+  async revokeAllSessions(userId: string) {
+    await userRepository.deleteSessionsByUserId(userId);
+  }
+
+  // --- API KEY SERVICE ---
+  async getApiKeys(userId: string) {
+    const keys = await userRepository.findApiKeysByUserId(userId);
+    return keys.map((k: any) => ({
+      id: k.id,
+      name: k.name,
+      createdAt: k.createdAt,
+      expiresAt: k.expiresAt,
+      lastUsedAt: k.lastUsedAt
+    }));
+  }
+
+  async createApiKey(userId: string, name: string) {
+    const rawKey = `shivil_ak_${crypto.randomBytes(24).toString("hex")}`;
+    const hashedKey = hashToken(rawKey);
+
+    const apiKey = await userRepository.createApiKey({
+      name,
+      key: hashedKey,
+      userId
+    });
+
+    return {
+      id: apiKey.id,
+      name: apiKey.name,
+      apiKey: rawKey, // Expose raw key only ONCE at creation
+      createdAt: apiKey.createdAt
+    };
+  }
+
+  async revokeApiKey(userId: string, keyId: string) {
+    const apiKey = await userRepository.findApiKeyById(keyId);
+    if (!apiKey) {
+      throw ApiError.notFound("API Key not found.");
+    }
+    if (apiKey.userId !== userId) {
+      throw ApiError.forbidden("Access forbidden. Cannot revoke another user's API Key.");
+    }
+    await userRepository.deleteApiKey(keyId);
   }
 }

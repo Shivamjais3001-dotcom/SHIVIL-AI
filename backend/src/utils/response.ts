@@ -1,31 +1,40 @@
 import { Response } from "express";
 
-export interface ApiResponse<T = any> {
+export interface ApiResponseEnvelope<T = any> {
   success: boolean;
-  message?: string;
-  data?: T;
-  error?: {
-    message: string;
-    statusCode: number;
-    details?: any;
-    stack?: string;
+  message: string;
+  data: T | null;
+  meta: any | null;
+  errors: any | null;
+}
+
+export function sendResponse<T>(
+  res: Response,
+  statusCode: number,
+  success: boolean,
+  message: string,
+  data: T | null = null,
+  meta: any | null = null,
+  errors: any | null = null
+): Response {
+  const envelope: ApiResponseEnvelope<T> = {
+    success,
+    message,
+    data,
+    meta,
+    errors
   };
-  timestamp: string;
+  return res.status(statusCode).json(envelope);
 }
 
 export function sendSuccessResponse<T>(
   res: Response,
   data: T,
   message: string = "Request completed successfully",
-  statusCode: number = 200
+  statusCode: number = 200,
+  meta: any = null
 ): Response {
-  const responsePayload: ApiResponse<T> = {
-    success: true,
-    message,
-    data,
-    timestamp: new Date().toISOString(),
-  };
-  return res.status(statusCode).json(responsePayload);
+  return sendResponse(res, statusCode, true, message, data, meta, null);
 }
 
 export function sendErrorResponse(
@@ -35,15 +44,11 @@ export function sendErrorResponse(
   details: any = null,
   stack: string | undefined = undefined
 ): Response {
-  const responsePayload: ApiResponse = {
-    success: false,
-    error: {
-      message,
-      statusCode,
-      details,
-      stack: process.env.NODE_ENV === "development" ? stack : undefined,
-    },
-    timestamp: new Date().toISOString(),
+  const errorObj = {
+    message,
+    statusCode,
+    details,
+    stack: process.env.NODE_ENV === "development" ? stack : undefined
   };
-  return res.status(statusCode).json(responsePayload);
+  return sendResponse(res, statusCode, false, message, null, null, errorObj);
 }
