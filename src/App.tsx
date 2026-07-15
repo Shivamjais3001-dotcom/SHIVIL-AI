@@ -9,6 +9,7 @@ import StudentManagement from "./pages/StudentManagement";
 import Faculty from "./pages/Faculty";
 import Courses from "./pages/Courses";
 import Attendance from "./pages/Attendance";
+import Examination from "./pages/Examination";
 import Reports from "./pages/Reports";
 import Placements from "./pages/Placements";
 import Fees from "./pages/Fees";
@@ -82,6 +83,7 @@ function App() {
         <Route path="/faculty" element={<Faculty />} />
         <Route path="/courses" element={<Courses />} />
         <Route path="/attendance" element={<Attendance />} />
+        <Route path="/examination" element={<Examination />} />
         <Route path="/reports" element={<Reports />} />
         <Route path="/placements" element={<Placements />} />
         <Route path="/fees" element={<Fees />} />

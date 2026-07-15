@@ -16,6 +16,7 @@ import aiRoutes from "./routes/ai.routes";
 import dashboardRoutes from "./routes/dashboard.routes";
 import timetableRoutes from "./routes/timetable.routes";
 import academicRoutes from "./routes/academic.routes";
+import examinationRoutes from "./routes/examination.routes";
 
 // Middlewares
 import { errorMiddleware } from "./middlewares/error.middleware";
@@ -65,6 +66,7 @@ app.use("/api/ai", aiRoutes);
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/timetable", timetableRoutes);
 app.use("/api/academic", academicRoutes);
+app.use("/api/examination", examinationRoutes);
 
 // Centralized error interceptor handler
 app.use(errorMiddleware);

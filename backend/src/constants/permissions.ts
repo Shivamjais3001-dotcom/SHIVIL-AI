@@ -33,9 +33,33 @@ export enum Permission {
   // Hostel Management
   HOSTEL_MANAGE = "HOSTEL_MANAGE",
   
-  // Exam Management
-  EXAM_MANAGE = "EXAM_MANAGE",
-  
+  // Exam Management — Granular Sprint 8
+  EXAM_CREATE = "EXAM_CREATE",
+  EXAM_SCHEDULE = "EXAM_SCHEDULE",
+  EXAM_LOCK = "EXAM_LOCK",
+  EXAM_VIEW = "EXAM_VIEW",
+  EXAM_DELETE = "EXAM_DELETE",
+
+  // Marks Management
+  MARKS_ENTER = "MARKS_ENTER",
+  MARKS_MODERATE = "MARKS_MODERATE",
+  MARKS_APPROVE = "MARKS_APPROVE",
+  MARKS_VIEW = "MARKS_VIEW",
+  MARKS_LOCK = "MARKS_LOCK",
+
+  // Result Management
+  RESULT_PROCESS = "RESULT_PROCESS",
+  RESULT_VIEW = "RESULT_VIEW",
+  TRANSCRIPT_VIEW = "TRANSCRIPT_VIEW",
+
+  // Grading Policy
+  GRADING_POLICY_MANAGE = "GRADING_POLICY_MANAGE",
+  GRADING_POLICY_VIEW = "GRADING_POLICY_VIEW",
+
+  // Re-evaluation
+  REEVALUATION_REQUEST = "REEVALUATION_REQUEST",
+  REEVALUATION_PROCESS = "REEVALUATION_PROCESS",
+
   // Placement Management
   PLACEMENT_MANAGE = "PLACEMENT_MANAGE",
   
@@ -51,24 +75,38 @@ export const ROLE_PERMISSIONS: Record<string, Permission[]> = {
     Permission.STUDENT_CREATE, Permission.STUDENT_READ, Permission.STUDENT_UPDATE, Permission.STUDENT_DELETE,
     Permission.COURSE_CREATE, Permission.COURSE_READ, Permission.COURSE_UPDATE, Permission.COURSE_DELETE,
     Permission.ATTENDANCE_VIEW, Permission.FEES_MANAGE, Permission.LIBRARY_MANAGE, Permission.HOSTEL_MANAGE,
-    Permission.EXAM_MANAGE, Permission.PLACEMENT_MANAGE, Permission.AI_CHAT
+    Permission.EXAM_CREATE, Permission.EXAM_SCHEDULE, Permission.EXAM_LOCK, Permission.EXAM_VIEW, Permission.EXAM_DELETE,
+    Permission.MARKS_ENTER, Permission.MARKS_MODERATE, Permission.MARKS_APPROVE, Permission.MARKS_VIEW, Permission.MARKS_LOCK,
+    Permission.RESULT_PROCESS, Permission.RESULT_VIEW, Permission.TRANSCRIPT_VIEW,
+    Permission.GRADING_POLICY_MANAGE, Permission.GRADING_POLICY_VIEW,
+    Permission.REEVALUATION_REQUEST, Permission.REEVALUATION_PROCESS,
+    Permission.PLACEMENT_MANAGE, Permission.AI_CHAT
   ],
   
   HOD: [
     Permission.FACULTY_READ, Permission.STUDENT_READ, Permission.STUDENT_UPDATE,
     Permission.COURSE_READ, Permission.COURSE_CREATE, Permission.COURSE_UPDATE,
-    Permission.ATTENDANCE_MARK, Permission.ATTENDANCE_VIEW, Permission.EXAM_MANAGE,
+    Permission.ATTENDANCE_MARK, Permission.ATTENDANCE_VIEW,
+    Permission.EXAM_CREATE, Permission.EXAM_SCHEDULE, Permission.EXAM_VIEW,
+    Permission.MARKS_ENTER, Permission.MARKS_MODERATE, Permission.MARKS_VIEW,
+    Permission.RESULT_VIEW, Permission.GRADING_POLICY_VIEW,
+    Permission.REEVALUATION_PROCESS,
     Permission.AI_CHAT
   ],
 
   FACULTY: [
     Permission.FACULTY_READ, Permission.STUDENT_READ, Permission.COURSE_READ,
-    Permission.ATTENDANCE_MARK, Permission.ATTENDANCE_VIEW, Permission.EXAM_MANAGE,
+    Permission.ATTENDANCE_MARK, Permission.ATTENDANCE_VIEW,
+    Permission.EXAM_VIEW, Permission.EXAM_SCHEDULE,
+    Permission.MARKS_ENTER, Permission.MARKS_VIEW,
+    Permission.RESULT_VIEW, Permission.GRADING_POLICY_VIEW,
     Permission.AI_CHAT
   ],
 
   STUDENT: [
     Permission.STUDENT_READ, Permission.COURSE_READ, Permission.ATTENDANCE_VIEW,
+    Permission.EXAM_VIEW, Permission.MARKS_VIEW, Permission.RESULT_VIEW,
+    Permission.TRANSCRIPT_VIEW, Permission.REEVALUATION_REQUEST,
     Permission.AI_CHAT
   ],
 
@@ -81,7 +119,12 @@ export const ROLE_PERMISSIONS: Record<string, Permission[]> = {
   ],
 
   EXAM_CONTROLLER: [
-    Permission.EXAM_MANAGE, Permission.STUDENT_READ, Permission.COURSE_READ
+    Permission.EXAM_CREATE, Permission.EXAM_SCHEDULE, Permission.EXAM_LOCK, Permission.EXAM_VIEW, Permission.EXAM_DELETE,
+    Permission.MARKS_ENTER, Permission.MARKS_MODERATE, Permission.MARKS_APPROVE, Permission.MARKS_VIEW, Permission.MARKS_LOCK,
+    Permission.RESULT_PROCESS, Permission.RESULT_VIEW, Permission.TRANSCRIPT_VIEW,
+    Permission.GRADING_POLICY_MANAGE, Permission.GRADING_POLICY_VIEW,
+    Permission.REEVALUATION_REQUEST, Permission.REEVALUATION_PROCESS,
+    Permission.STUDENT_READ, Permission.COURSE_READ
   ],
 
   PLACEMENT_OFFICER: [
@@ -93,6 +136,8 @@ export const ROLE_PERMISSIONS: Record<string, Permission[]> = {
   ],
 
   PARENT: [
-    Permission.STUDENT_READ, Permission.ATTENDANCE_VIEW
+    Permission.STUDENT_READ, Permission.ATTENDANCE_VIEW,
+    Permission.RESULT_VIEW, Permission.TRANSCRIPT_VIEW
   ]
 };
+

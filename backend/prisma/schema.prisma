@@ -21,6 +21,45 @@ enum Role {
   PARENT
 }
 
+enum ExamType {
+  MID_SEMESTER
+  END_SEMESTER
+  QUIZ
+  ASSIGNMENT
+  LAB_EXAM
+  PRACTICAL
+  VIVA
+  PROJECT_EVALUATION
+  RETEST
+  SUPPLEMENTARY
+}
+
+enum ApprovalStatus {
+  PENDING
+  SUBMITTED
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+  LOCKED
+}
+
+enum ResultStatus {
+  PROMOTED
+  BACKLOG
+  DETAINED
+  GRADUATED
+  ELIGIBLE_FOR_GRADUATION
+  PROCESSING
+}
+
+enum ReEvalStatus {
+  REQUESTED
+  IN_REVIEW
+  COMPLETED
+  REJECTED
+  WITHDRAWN
+}
+
 enum AttendanceStatus {
   PRESENT
   ABSENT
@@ -111,6 +150,9 @@ model Student {
   fees             FeeReceipt[]
   predictions      AttendancePrediction[]
   enrollments      Enrollment[]
+  examMarks        ExamMark[]
+  resultSummaries  StudentResultSummary[]
+  reEvaluations    ReEvaluation[]
 
   @@index([rollNo])
   @@index([enrollmentNo])
@@ -198,11 +240,13 @@ model Subject {
   createdAt       DateTime    @default(now())
   updatedAt       DateTime    @updatedAt
 
-  attendance      Attendance[]
-  timetables      Timetable[]
+  attendance        Attendance[]
+  timetables        Timetable[]
   attendanceSessions AttendanceSession[]
-  predictions     AttendancePrediction[]
-  offerings       CourseOffering[]
+  predictions       AttendancePrediction[]
+  offerings         CourseOffering[]
+  exams             Exam[]
+  assessmentComponent AssessmentComponent?
 
   @@index([courseId])
   @@index([facultyId])
@@ -311,6 +355,322 @@ model Timetable {
   @@index([facultyId])
 }
 
+
+// ============================================================
+// EXAMINATION & ASSESSMENT ENGINE — Sprint 8
+// ============================================================
+
+// Assessment Component Configuration — per-subject weightage
+model AssessmentComponent {
+  id               String   @id @default(uuid())
+  subjectId        String   @unique
+  subject          Subject  @relation(fields: [subjectId], references: [id])
+  universityId     String?
+
+  // Weightage breakdown (must sum to 100%)
+  internalWeight   Float    @default(30)   // Internal assessment %
+  externalWeight   Float    @default(70)   // End-semester exam %
+  assignmentWeight Float    @default(0)    // Assignments %
+  quizWeight       Float    @default(0)    // Quizzes %
+  labWeight        Float    @default(0)    // Lab practical %
+  attendanceWeight Float    @default(0)    // Attendance-linked marks %
+  projectWeight    Float    @default(0)    // Project %
+  presentationWeight Float  @default(0)   // Presentation / Viva %
+
+  // Max marks per component
+  internalMaxMarks   Float  @default(30)
+  externalMaxMarks   Float  @default(70)
+  totalMaxMarks      Float  @default(100)
+
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([subjectId])
+  @@index([universityId])
+}
+
+// Core Exam Entity
+model Exam {
+  id               String        @id @default(uuid())
+  title            String
+  examType         ExamType      @default(MID_SEMESTER)
+  subjectId        String
+  subject          Subject       @relation(fields: [subjectId], references: [id])
+  universityId     String?
+  semester         String
+  academicYear     String
+
+  // Scheduling
+  date             DateTime
+  startTime        String        // HH:MM
+  endTime          String        // HH:MM
+
+  // Venue & Invigilation
+  classroomId      String?
+  invigilatorId    String?       // Faculty ID
+  venueDetails     Json?         // Additional room info
+
+  // Exam Configuration
+  maxMarks         Float         @default(100)
+  passingMarks     Float         @default(40)
+  weightagePercent Float         @default(100)
+  duration         Int           @default(180) // minutes
+
+  // Status & Workflow
+  approvalStatus   ApprovalStatus @default(PENDING)
+  isLocked         Boolean       @default(false)
+  lockedAt         DateTime?
+  lockedById       String?
+
+  // AI Metadata
+  questionBlueprintMetadata  Json?   // AI question paper blueprint data
+  difficultyLevel  String?   @default("MEDIUM")
+
+  // Conflict detection hash: date+startTime+classroomId
+  conflictHash     String?
+
+  createdById      String?
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+  deletedAt        DateTime?
+
+  marks            ExamMark[]
+  reEvaluations    ReEvaluation[]
+  auditLogs        ExamAuditLog[]
+
+  @@index([subjectId])
+  @@index([universityId])
+  @@index([examType])
+  @@index([semester, academicYear])
+  @@index([date])
+  @@index([approvalStatus])
+  @@index([conflictHash])
+  @@index([classroomId, date, startTime]) // Conflict detection composite
+}
+
+// ExamMark — Core mark record with full audit trail
+model ExamMark {
+  id               String        @id @default(uuid())
+  examId           String
+  exam             Exam          @relation(fields: [examId], references: [id])
+  studentId        String
+  student          Student       @relation(fields: [studentId], references: [id])
+
+  // Component-wise marks
+  internalMarks    Float         @default(0)
+  externalMarks    Float         @default(0)
+  assignmentMarks  Float         @default(0)
+  quizMarks        Float         @default(0)
+  labMarks         Float         @default(0)
+  projectMarks     Float         @default(0)
+  presentationMarks Float        @default(0)
+  attendanceMarks  Float         @default(0)
+  totalMarks       Float         @default(0)
+
+  // Grading
+  grade            String?       // A+, A, B+, B, C, D, F
+  gradePoint       Float?        // 10.0, 9.0, 8.0 etc.
+  creditPoints     Float?        // gradePoint * credits
+
+  // Moderation
+  originalMarks    Float?        // Before moderation
+  moderatedMarks   Float?        // After moderation delta
+  moderationDelta  Float?        // e.g. +5, -2
+  moderationReason String?
+
+  // Approval workflow
+  approvalStatus   ApprovalStatus @default(PENDING)
+  submittedById    String?       // Faculty who entered marks
+  submittedAt      DateTime?
+  reviewedById     String?       // HOD who reviewed
+  reviewedAt       DateTime?
+  approvedById     String?       // EXAM_CONTROLLER who approved
+  approvedAt       DateTime?
+  rejectionReason  String?
+
+  // Re-evaluation flag
+  hasReEvalRequest Boolean       @default(false)
+
+  // Full immutable audit trail (JSON array of changes)
+  auditTrail       Json?
+
+  // AI metadata
+  performanceMetadata Json?      // AI anomaly detection flags
+
+  isLocked         Boolean       @default(false)
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  deletedAt        DateTime?
+
+  reEvaluations    ReEvaluation[]
+
+  @@unique([examId, studentId])
+  @@index([examId])
+  @@index([studentId])
+  @@index([examId, studentId])
+  @@index([approvalStatus])
+  @@index([grade])
+  @@index([studentId, grade])
+}
+
+// GradingPolicy — Per-university, multi-tenant grading rules
+model GradingPolicy {
+  id                    String   @id @default(uuid())
+  universityId          String?  @unique
+
+  // Letter grade boundaries (percentage thresholds)
+  // e.g. { "O": 90, "A+": 80, "A": 70, "B+": 60, "B": 50, "C": 45, "P": 40, "F": 0 }
+  gradeBoundaries       Json?
+
+  // Grade points per letter
+  // e.g. { "O": 10, "A+": 9, "A": 8, "B+": 7, "B": 6, "C": 5, "P": 4, "F": 0 }
+  gradePoints           Json?
+
+  // CGPA/SGPA rules
+  creditSystem          String   @default("10_POINT")  // 10_POINT, 4_POINT, PERCENTAGE
+  promotionMinCGPA      Float    @default(4.0)
+  promotionMaxBacklogs  Int      @default(3)
+  graduationMinCredits  Int      @default(120)
+  graduationMinCGPA     Float    @default(5.0)
+  passingGradePoint     Float    @default(4.0)
+
+  // Custom university rules JSON (for any edge cases)
+  customRules           Json?
+
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@index([universityId])
+}
+
+// StudentResultSummary — Computed SGPA/CGPA per semester
+model StudentResultSummary {
+  id                String       @id @default(uuid())
+  studentId         String
+  student           Student      @relation(fields: [studentId], references: [id])
+  universityId      String?
+  semester          String
+  academicYear      String
+
+  // Computed scores
+  sgpa              Float        @default(0.0)
+  cgpa              Float        @default(0.0)
+
+  // Credits
+  creditsRegistered Int          @default(0)
+  creditsEarned     Int          @default(0)
+  totalCreditPoints Float        @default(0.0)
+
+  // Backlogs
+  backlogsCount     Int          @default(0)
+  backlogSubjects   Json?        // Array of {subjectId, subjectCode, marks, grade}
+
+  // Promotion & Status
+  resultStatus      ResultStatus @default(PROCESSING)
+  isEligibleForPromotion Boolean @default(false)
+  isEligibleForGraduation Boolean @default(false)
+
+  // Processing metadata
+  processedAt       DateTime?
+  processedById     String?
+
+  // AI Insights
+  aiInsights        Json?        // Performance trend, risk prediction
+
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  @@unique([studentId, semester, academicYear])
+  @@index([studentId])
+  @@index([universityId])
+  @@index([semester, academicYear])
+  @@index([resultStatus])
+  @@index([cgpa])
+  @@index([studentId, semester])
+}
+
+// ExamAuditLog — Immutable audit trail for all exam operations
+model ExamAuditLog {
+  id           String   @id @default(uuid())
+  examId       String?
+  exam         Exam?    @relation(fields: [examId], references: [id])
+  examMarkId   String?
+  action       String   // e.g. MARKS_ENTERED, MARKS_MODERATED, MARKS_APPROVED, EXAM_LOCKED
+  actorId      String
+  actorRole    String
+  previousValue Json?
+  newValue      Json?
+  ipAddress    String?
+  metadata     Json?
+  createdAt    DateTime @default(now())
+
+  @@index([examId])
+  @@index([examMarkId])
+  @@index([actorId])
+  @@index([action])
+  @@index([createdAt])
+}
+
+// ReEvaluation — Student/faculty re-evaluation requests
+model ReEvaluation {
+  id            String        @id @default(uuid())
+  examId        String
+  exam          Exam          @relation(fields: [examId], references: [id])
+  examMarkId    String?
+  examMark      ExamMark?     @relation(fields: [examMarkId], references: [id])
+  studentId     String
+  student       Student       @relation(fields: [studentId], references: [id])
+
+  status        ReEvalStatus  @default(REQUESTED)
+  reason        String
+  requestedAt   DateTime      @default(now())
+
+  reviewedById  String?
+  reviewedAt    DateTime?
+  reviewNotes   String?
+
+  // Mark changes post re-eval
+  previousMarks Float?
+  revisedMarks  Float?
+  previousGrade String?
+  revisedGrade  String?
+
+  resolvedAt    DateTime?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@index([examId])
+  @@index([studentId])
+  @@index([status])
+  @@index([examMarkId])
+}
+
+// ResultProcessingJob — Async result generation tracking
+model ResultProcessingJob {
+  id            String   @id @default(uuid())
+  universityId  String?
+  semester      String
+  academicYear  String
+  batchFilter   Json?    // { branch, section, subjectIds }
+
+  status        String   @default("QUEUED") // QUEUED, PROCESSING, COMPLETED, FAILED
+  totalStudents Int      @default(0)
+  processed     Int      @default(0)
+  failed        Int      @default(0)
+  errorLog      Json?
+
+  triggeredById String
+  startedAt     DateTime?
+  completedAt   DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([universityId])
+  @@index([semester, academicYear])
+  @@index([status])
+}
+
+// Legacy result model (kept for backward compatibility)
 model Result {
   id         String   @id @default(uuid())
   marks      Float
@@ -321,6 +681,8 @@ model Result {
 
   @@index([studentId])
 }
+
+
 
 model HostelRoom {
   id        String   @id @default(uuid())
