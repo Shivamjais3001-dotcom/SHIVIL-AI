@@ -20,7 +20,19 @@ import {
   Trash2,
   ChevronRight,
   TrendingUp,
-  Volume2
+  Volume2,
+  Terminal,
+  Search,
+  CheckCircle,
+  FolderDot,
+  FileCode,
+  Mail,
+  Award,
+  Zap,
+  Activity,
+  Edit3,
+  X,
+  Database
 } from "lucide-react";
 import type { Student } from "../types/student";
 import type { Faculty } from "../types/faculty";
@@ -28,7 +40,8 @@ import type { Faculty } from "../types/faculty";
 interface ChatMessage {
   sender: "user" | "ai";
   text: string;
-  elements?: React.ReactNode;
+  codeBlock?: { lang: string; code: string };
+  tableData?: Array<Record<string, string>>;
   actions?: Array<{ label: string; onClick: () => void }>;
 }
 
@@ -47,13 +60,16 @@ function AIAssistant() {
   const [toastMessage, setToastMessage] = useState("");
   const [isListening, setIsListening] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
+  const [searchConvQuery, setSearchConvQuery] = useState("");
+  const [editingConvId, setEditingConvId] = useState<string | null>(null);
+  const [editingTitleText, setEditingTitleText] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Initialize mock conversations
   const [conversations, setConversations] = useState<Conversation[]>([
     {
       id: "conv-1",
-      title: "Q3 Attendance Shortage",
+      title: "Q3 Attendance Shortages",
       isPinned: true,
       messages: [
         {
@@ -80,7 +96,7 @@ function AIAssistant() {
       messages: [
         {
           sender: "ai",
-          text: "Predictive Analytics show a 94.2% passing trajectory. Arrange tutoring for CS-101 candidates to boost average grades."
+          text: "Predictive Analytics show a 94.2% passing trajectory. Supplemental tutoring templates loaded."
         }
       ]
     }
@@ -88,23 +104,41 @@ function AIAssistant() {
   
   const [activeConvId, setActiveConvId] = useState("conv-1");
 
+  // Filter conversations by search query
+  const filteredConversations = useMemo(() => {
+    return conversations.filter(c => 
+      c.title.toLowerCase().includes(searchConvQuery.toLowerCase())
+    );
+  }, [conversations, searchConvQuery]);
+
   // Get current active conversation
   const activeConversation = useMemo(() => {
     return conversations.find(c => c.id === activeConvId) || conversations[0];
   }, [conversations, activeConvId]);
 
-  // List of generated reports log
-  const [reports, setReports] = useState([
-    { name: "shortages_audit_Q3.xlsx", size: "24 KB", time: "2 hours ago" },
-    { name: "faculty_teaching_allocations.pdf", size: "148 KB", time: "Yesterday" },
-    { name: "grading_bell_curve_forecast.json", size: "12 KB", time: "July 14, 2026" }
+  // AI Workspace files: Reports, notices, etc.
+  const [workspaceFiles, setWorkspaceFiles] = useState([
+    { name: "shortages_audit_Q3.xlsx", category: "Reports", size: "24 KB" },
+    { name: "remedial_classes_schedule.pdf", category: "Documents", size: "128 KB" },
+    { name: "bell_curve_midterm_distribution.svg", category: "Charts", size: "84 KB" },
+    { name: "warning_notice_parents_neha.pdf", category: "Notices", size: "48 KB" },
+    { name: "academic_excellence_priya.pdf", category: "Certificates", size: "110 KB" }
   ]);
 
-  // AI recommendations cards data
-  const recommendations = [
-    { title: "Attendance warning", desc: "Neha & Anya are falling behind target rates." },
-    { title: "IT workload lag", desc: "Arrange extra lab class for cloud engineering curriculum." }
-  ];
+  const [activeWorkspaceTab, setActiveWorkspaceTab] = useState<"Reports" | "Documents" | "Charts" | "Notices" | "Certificates">("Reports");
+
+  const filteredWorkspaceFiles = useMemo(() => {
+    return workspaceFiles.filter(file => file.category === activeWorkspaceTab);
+  }, [workspaceFiles, activeWorkspaceTab]);
+
+  // Memory Panel Mock context variables
+  const selectedContext = {
+    student: "Neha Reddy (CSE, Year 3)",
+    course: "CS-302 Advanced Algorithms",
+    faculty: "Dr. Sarah Jenkins",
+    activeMemoryTokens: 1840,
+    sessionMode: "Autonomous Admin Operator"
+  };
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -114,14 +148,18 @@ function AIAssistant() {
     scrollToBottom();
   }, [activeConversation.messages, isTyping]);
 
-  // Parse queries inside workspace
+  const triggerToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(""), 3500);
+  };
+
+  // Processing input queries
   const processQuery = (text: string) => {
     if (!text.trim()) return;
 
     // User Message
     const updatedMessages = [...activeConversation.messages, { sender: "user", text } as ChatMessage];
     
-    // Update local state conversation
     setConversations(prev => 
       prev.map(c => c.id === activeConvId ? { ...c, messages: updatedMessages } : c)
     );
@@ -131,152 +169,52 @@ function AIAssistant() {
     setTimeout(() => {
       const query = text.toLowerCase().trim();
       let replyText = "";
-      let replyElements: React.ReactNode = null;
-      let replyActions: Array<{ label: string; onClick: () => void }> = [];
+      let replyCodeBlock: { lang: string; code: string } | undefined;
+      let replyTable: Array<Record<string, string>> | undefined;
 
-      // Query database
-      const students: Student[] = JSON.parse(localStorage.getItem("students") || "[]");
-      const faculty: Faculty[] = JSON.parse(localStorage.getItem("faculty") || "[]");
-
-      // Intent Matcher 1: Attendance below 75%
-      if (query.includes("attendance") && (query.includes("below") || query.includes("75") || query.includes("shortage"))) {
-        const shortages = students.filter((s) => {
-          if (s.name === "Neha Reddy" || s.name === "Anya Sen" || s.name === "Rohan Gupta") return true;
-          return false;
-        }).map(s => ({
-          ...s,
-          rate: s.name === "Neha Reddy" ? 58 : s.name === "Anya Sen" ? 64 : 74
-        }));
-
-        replyText = `🔍 Found ${shortages.length} student records with attendance shortages. Detailed register log:`;
-        
-        replyElements = (
-          <div className="mt-3 overflow-hidden rounded-xl border border-white/5 bg-slate-950 p-1 select-none">
-            <table className="w-full text-left text-xs border-collapse">
-              <thead>
-                <tr className="bg-slate-900/50 border-b border-slate-800 text-[10px] uppercase font-bold text-slate-500">
-                  <th className="p-3">Student</th>
-                  <th className="p-3">Roll</th>
-                  <th className="p-3 text-right">Attendance</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-900/50">
-                {shortages.map((s, idx) => (
-                  <tr key={idx} className="hover:bg-slate-900/40 transition duration-150">
-                    <td className="p-3 text-white font-semibold">{s.name}</td>
-                    <td className="p-3 font-mono text-slate-500">{s.roll}</td>
-                    <td className={`p-3 text-right font-bold ${s.rate < 65 ? "text-red-400" : "text-yellow-400"}`}>{s.rate}%</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        );
-
-        replyActions = [
-          {
-            label: "📧 CC Warning Notices",
-            onClick: () => {
-              setToastMessage("Warning alerts emailed to Neha, Anya & Rohan.");
-              setTimeout(() => setToastMessage(""), 3500);
-              
-              setConversations(prev => 
-                prev.map(c => c.id === activeConvId ? {
-                  ...c,
-                  messages: [...updatedMessages, { sender: "ai", text: "🔍 Found 3 student records with attendance shortages. Detailed register log:", elements: replyElements }, {
-                    sender: "ai",
-                    text: "✉️ Warning alert notices dispatched to student profiles. Course advisors flagged."
-                  }]
-                } : c)
-              );
-            }
-          },
-          {
-            label: "📊 Download Excel Sheet",
-            onClick: () => {
-              const reportName = "shortages_audit_Q3.xlsx";
-              // Append to report logs panel
-              setReports(prev => [{ name: reportName, size: "24 KB", time: "Just now" }, ...prev]);
-              setToastMessage("Generated shortages_audit_Q3.xlsx sheet.");
-              setTimeout(() => setToastMessage(""), 3500);
-
-              setConversations(prev => 
-                prev.map(c => c.id === activeConvId ? {
-                  ...c,
-                  messages: [...updatedMessages, { sender: "ai", text: "🔍 Found 3 student records with attendance shortages. Detailed register log:", elements: replyElements }, {
-                    sender: "ai",
-                    text: "📊 Shortage metrics ledger compiled successfully. Log added to your generated reports catalog."
-                  }]
-                } : c)
-              );
-            }
-          }
+      // Intent Matcher 1: Attendance Report
+      if (query.includes("attendance") || query.includes("shortage")) {
+        replyText = "🔍 Attendance records parsed. Here is the active warning index table for Q3:";
+        replyTable = [
+          { Student: "Neha Reddy", Roll: "APEX-2026-002", Attendance: "58%", Status: "Critical" },
+          { Student: "Anya Sen", Roll: "APEX-2026-044", Attendance: "64%", Status: "Alert" },
+          { Student: "Rohan Gupta", Roll: "APEX-2026-118", Attendance: "74%", Status: "Borderline" }
+        ];
+      } 
+      // Intent Matcher 2: Timetable / Schedule
+      else if (query.includes("timetable") || query.includes("schedule") || query.includes("meeting")) {
+        replyText = "📅 Generated optimal timetable configuration based on lab loads:";
+        replyCodeBlock = {
+          lang: "json",
+          code: JSON.stringify({
+            semester: "III-A",
+            days: ["Monday", "Wednesday"],
+            slots: [
+              { time: "09:00 AM", course: "CS-302 Algorithms", room: "Room 402" },
+              { time: "11:30 AM", course: "CS-101 Introduction to AI", room: "Lab 3" }
+            ]
+          }, null, 2)
+        };
+      }
+      // Intent Matcher 3: Dropout risk
+      else if (query.includes("dropout") || query.includes("risk")) {
+        replyText = "🔮 AI predictive dropout risk model scores:";
+        replyTable = [
+          { Student: "Neha Reddy", RiskScore: "88%", Cause: "Attendance shortfall", Action: "Tutorial check-in" },
+          { Student: "Anya Sen", RiskScore: "62%", Cause: "Syllabus delay", Action: "Mentoring assigned" }
         ];
       }
-      
-      // Intent Matcher 2: Student find
-      else if (query.includes("student") || query.includes("find")) {
-        const found = students.slice(0, 3);
-        replyText = `🔍 Queried student database matching your index terms:`;
-        replyElements = (
-          <div className="mt-3 space-y-2">
-            {found.map((s, idx) => (
-              <div key={idx} className="p-3 rounded-xl bg-slate-950 border border-slate-900 flex items-center justify-between hover:border-slate-800 transition">
-                <div>
-                  <p className="text-xs font-bold text-white leading-none">{s.name}</p>
-                  <p className="text-[10px] text-slate-500 font-mono mt-1.5">{s.roll} • {s.branch}</p>
-                </div>
-                <span className="text-[9px] font-bold px-2 py-0.5 rounded-full border border-green-500/25 bg-green-500/10 text-green-400 uppercase tracking-wider">
-                  {s.status}
-                </span>
-              </div>
-            ))}
-          </div>
-        );
+      // Intent Matcher 4: Faculty report
+      else if (query.includes("faculty")) {
+        replyText = "📂 Faculty workload indexes finalized:";
+        replyTable = [
+          { Professor: "Dr. Sarah Jenkins", Department: "CSE", Uptime: "96%", WeeklyLoad: "14 hrs" },
+          { Prof: "Marcus Vance", Department: "ECE", Uptime: "88%", WeeklyLoad: "16 hrs" }
+        ];
       }
-
-      // Intent Matcher 3: Workload query
-      else if (query.includes("workload") || query.includes("faculty")) {
-        replyText = `📂 Compiled active teaching hours allocation grid:`;
-        replyElements = (
-          <div className="mt-3 space-y-2">
-            {faculty.map((f, idx) => (
-              <div key={idx} className="p-3 rounded-xl bg-slate-950 border border-slate-900 flex items-center justify-between hover:border-slate-800 transition">
-                <div>
-                  <p className="text-xs font-bold text-white leading-none">{f.name}</p>
-                  <p className="text-[10px] text-slate-500 mt-1.5">{f.department}</p>
-                </div>
-                <span className="text-[10px] font-mono font-bold text-slate-400">
-                  {idx === 0 ? "14 hrs/wk" : idx === 1 ? "16 hrs/wk" : "12 hrs/wk"}
-                </span>
-              </div>
-            ))}
-          </div>
-        );
-      }
-
-      // Intent Matcher 4: Performance Analytics
-      else if (query.includes("predict") || query.includes("performance") || query.includes("grade")) {
-        replyText = `🔮 SHIVIL AI Grade Projection Model:`;
-        replyElements = (
-          <div className="mt-3 p-4 rounded-xl bg-slate-950 border border-slate-900 space-y-3">
-            <div className="flex items-center justify-between text-xs text-slate-400 font-semibold">
-              <span>Term Passing Trajectory</span>
-              <span className="text-emerald-400 font-bold font-mono">94.2%</span>
-            </div>
-            <div className="w-full bg-slate-900 h-1.5 rounded-full overflow-hidden">
-              <div className="h-full bg-gradient-to-r from-blue-500 to-purple-500 rounded-full" style={{ width: "94.2%" }} />
-            </div>
-            <p className="text-[10px] text-slate-500 leading-normal">
-              💡 CS-101 syllabus checks flag 4 students at performance threshold risk.
-            </p>
-          </div>
-        );
-      }
-
       // Fallback
       else {
-        replyText = "💬 Command query completed. Ask me to 'show attendance shortages', 'list student directory', 'faculty workload balance', or 'predict grade analytics'.";
+        replyText = "💬 Command complete. Ask me to 'generate attendance report', 'predict dropout risk', 'create notice', or 'create timetable'.";
       }
 
       setConversations(prev => 
@@ -285,8 +223,8 @@ function AIAssistant() {
           messages: [...updatedMessages, {
             sender: "ai",
             text: replyText,
-            elements: replyElements,
-            actions: replyActions
+            codeBlock: replyCodeBlock,
+            tableData: replyTable
           }]
         } : c)
       );
@@ -298,17 +236,15 @@ function AIAssistant() {
     processQuery(queryText);
   };
 
-  // Simulate audio wave visual activation
   const handleVoiceSimulate = () => {
     if (isTyping) return;
     setIsListening(true);
     setTimeout(() => {
       setIsListening(false);
-      processQuery("Show attendance below 75%");
+      processQuery("Predict student dropout risk profiles");
     }, 2800);
   };
 
-  // Clear history action
   const deleteConversation = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     setConversations(prev => prev.filter(c => c.id !== id));
@@ -317,7 +253,6 @@ function AIAssistant() {
     }
   };
 
-  // Build a new clean conversation session
   const createNewSession = () => {
     const newId = `conv-${Date.now()}`;
     const newConv: Conversation = {
@@ -335,33 +270,66 @@ function AIAssistant() {
     setActiveConvId(newId);
   };
 
+  const startRenameConversation = (id: string, title: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditingConvId(id);
+    setEditingTitleText(title);
+  };
+
+  const saveRenameConversation = (id: string) => {
+    if (!editingTitleText.trim()) return;
+    setConversations(prev => 
+      prev.map(c => c.id === id ? { ...c, title: editingTitleText } : c)
+    );
+    setEditingConvId(null);
+    triggerToast("Conversation log title updated.");
+  };
+
+  const togglePinConversation = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setConversations(prev => 
+      prev.map(c => c.id === id ? { ...c, isPinned: !c.isPinned } : c)
+    );
+    triggerToast("Conversation pin status updated.");
+  };
+
   return (
-    <div className="flex min-h-screen bg-[#030712] overflow-x-hidden text-slate-100 font-sans">
+    <div className="flex min-h-screen bg-[#030712] overflow-hidden text-slate-100 font-sans select-none">
       <Sidebar />
 
-      {/* Main Workspace Frame */}
+      {/* Main OS Console Screen */}
       <div className="flex-1 flex flex-col lg:flex-row h-screen min-w-0">
         
-        {/* Left Panel: Conversation History & Prompts (Hides on tablet/mobile) */}
-        <aside className="hidden lg:flex flex-col w-64 border-r border-white/5 bg-[#050814]/70 p-4 space-y-6 shrink-0 h-full overflow-y-auto">
+        {/* PANEL 1 (Left 3 cols): Session History & Context Panel */}
+        <aside className="hidden lg:flex flex-col w-72 border-r border-white/5 bg-[#050814]/70 p-4 space-y-6 shrink-0 h-full overflow-y-auto">
           
-          {/* New Console Action Button */}
           <button 
             onClick={createNewSession}
-            className="w-full py-2.5 rounded-xl bg-slate-900 border border-white/5 text-xs font-bold text-slate-200 hover:text-white hover:bg-slate-850 cursor-pointer transition flex items-center justify-center gap-2"
+            className="w-full py-2.5 rounded-xl bg-slate-900 border border-white/5 text-xs font-bold text-slate-200 hover:text-white hover:bg-slate-850 cursor-pointer transition flex items-center justify-center gap-2 shadow"
           >
             <Sparkles size={14} className="text-blue-400" />
-            <span>New Console</span>
+            <span>New Console Session</span>
           </button>
 
-          {/* Pinned Conversation List */}
-          <div className="space-y-2.5">
+          {/* Search conversations */}
+          <div className="relative group">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-blue-400 transition" size={13} />
+            <input 
+              value={searchConvQuery}
+              onChange={(e) => setSearchConvQuery(e.target.value)}
+              placeholder="Search conversations..."
+              className="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-950 border border-slate-900 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-slate-800 transition"
+            />
+          </div>
+
+          {/* Pinned Log lists */}
+          <div className="space-y-2">
             <span className="text-[9px] uppercase tracking-wider font-bold text-slate-500 flex items-center gap-1.5 px-2 select-none">
               <Pin size={10} className="text-purple-400" />
-              <span>Pinned Logs</span>
+              <span>Pinned Sessions</span>
             </span>
             <div className="space-y-1">
-              {conversations.filter(c => c.isPinned).map(c => (
+              {filteredConversations.filter(c => c.isPinned).map(c => (
                 <div 
                   key={c.id}
                   onClick={() => setActiveConvId(c.id)}
@@ -369,29 +337,54 @@ function AIAssistant() {
                     activeConvId === c.id ? "bg-slate-900 text-white border border-white/5" : "text-slate-400 hover:bg-slate-950/50 hover:text-slate-200"
                   }`}
                 >
-                  <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="flex items-center gap-2.5 min-w-0 flex-1">
                     <MessageSquare size={13} className="text-slate-500 group-hover:text-slate-300" />
-                    <span className="truncate">{c.title}</span>
+                    {editingConvId === c.id ? (
+                      <input 
+                        value={editingTitleText}
+                        onChange={(e) => setEditingTitleText(e.target.value)}
+                        onBlur={() => saveRenameConversation(c.id)}
+                        onKeyDown={(e) => e.key === "Enter" && saveRenameConversation(c.id)}
+                        className="bg-transparent text-xs text-white focus:outline-none w-full"
+                        autoFocus
+                      />
+                    ) : (
+                      <span className="truncate">{c.title}</span>
+                    )}
                   </div>
-                  <button 
-                    onClick={(e) => deleteConversation(c.id, e)}
-                    className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-slate-800 text-slate-500 hover:text-red-400 transition cursor-pointer"
-                  >
-                    <Trash2 size={11} />
-                  </button>
+                  <div className="opacity-0 group-hover:opacity-100 flex items-center gap-1">
+                    <button 
+                      onClick={(e) => startRenameConversation(c.id, c.title, e)}
+                      className="p-1 rounded hover:bg-slate-800 text-slate-500 hover:text-white transition cursor-pointer"
+                    >
+                      <Edit3 size={11} />
+                    </button>
+                    <button 
+                      onClick={(e) => togglePinConversation(c.id, e)}
+                      className="p-1 rounded hover:bg-slate-800 text-slate-500 hover:text-white transition cursor-pointer"
+                    >
+                      <Pin size={11} />
+                    </button>
+                    <button 
+                      onClick={(e) => deleteConversation(c.id, e)}
+                      className="p-1 rounded hover:bg-slate-800 text-slate-500 hover:text-red-400 transition cursor-pointer"
+                    >
+                      <Trash2 size={11} />
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
           </div>
 
-          {/* Recent History List */}
-          <div className="space-y-2.5">
+          {/* Recents list */}
+          <div className="space-y-2">
             <span className="text-[9px] uppercase tracking-wider font-bold text-slate-500 flex items-center gap-1.5 px-2 select-none">
               <History size={10} />
               <span>Recents</span>
             </span>
             <div className="space-y-1">
-              {conversations.filter(c => !c.isPinned).map(c => (
+              {filteredConversations.filter(c => !c.isPinned).map(c => (
                 <div 
                   key={c.id}
                   onClick={() => setActiveConvId(c.id)}
@@ -399,65 +392,90 @@ function AIAssistant() {
                     activeConvId === c.id ? "bg-slate-900 text-white border border-white/5" : "text-slate-400 hover:bg-slate-950/50 hover:text-slate-200"
                   }`}
                 >
-                  <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="flex items-center gap-2.5 min-w-0 flex-1">
                     <MessageSquare size={13} className="text-slate-500 group-hover:text-slate-300" />
-                    <span className="truncate">{c.title}</span>
+                    {editingConvId === c.id ? (
+                      <input 
+                        value={editingTitleText}
+                        onChange={(e) => setEditingTitleText(e.target.value)}
+                        onBlur={() => saveRenameConversation(c.id)}
+                        onKeyDown={(e) => e.key === "Enter" && saveRenameConversation(c.id)}
+                        className="bg-transparent text-xs text-white focus:outline-none w-full"
+                        autoFocus
+                      />
+                    ) : (
+                      <span className="truncate">{c.title}</span>
+                    )}
                   </div>
-                  <button 
-                    onClick={(e) => deleteConversation(c.id, e)}
-                    className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-slate-800 text-slate-500 hover:text-red-400 transition cursor-pointer"
-                  >
-                    <Trash2 size={11} />
-                  </button>
+                  <div className="opacity-0 group-hover:opacity-100 flex items-center gap-1">
+                    <button 
+                      onClick={(e) => startRenameConversation(c.id, c.title, e)}
+                      className="p-1 rounded hover:bg-slate-800 text-slate-500 hover:text-white transition cursor-pointer"
+                    >
+                      <Edit3 size={11} />
+                    </button>
+                    <button 
+                      onClick={(e) => togglePinConversation(c.id, e)}
+                      className="p-1 rounded hover:bg-slate-800 text-slate-500 hover:text-white transition cursor-pointer"
+                    >
+                      <Pin size={11} />
+                    </button>
+                    <button 
+                      onClick={(e) => deleteConversation(c.id, e)}
+                      className="p-1 rounded hover:bg-slate-800 text-slate-500 hover:text-red-400 transition cursor-pointer"
+                    >
+                      <Trash2 size={11} />
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
           </div>
 
-          {/* Quick AI Prompts shortcuts */}
-          <div className="space-y-2.5 pt-2">
-            <span className="text-[9px] uppercase tracking-wider font-bold text-slate-500 px-2 select-none">Quick Prompts</span>
-            <div className="space-y-1.5 px-1">
-              <button 
-                onClick={() => handleSuggestionClick("Show attendance shortages")}
-                className="w-full text-left p-2.5 rounded-lg border border-white/5 bg-slate-950/30 text-[10px] text-slate-400 hover:text-white hover:border-slate-800 transition"
-              >
-                Attendance shortage audit
-              </button>
-              <button 
-                onClick={() => handleSuggestionClick("Faculty workload balance")}
-                className="w-full text-left p-2.5 rounded-lg border border-white/5 bg-slate-950/30 text-[10px] text-slate-400 hover:text-white hover:border-slate-800 transition"
-              >
-                Faculty teaching allocations
-              </button>
-              <button 
-                onClick={() => handleSuggestionClick("Predict passing curves")}
-                className="w-full text-left p-2.5 rounded-lg border border-white/5 bg-slate-950/30 text-[10px] text-slate-400 hover:text-white hover:border-slate-800 transition"
-              >
-                Grade boundary forecast
-              </button>
+          {/* Context Memory Panel */}
+          <div className="p-4 rounded-2xl bg-slate-950 border border-white/5 space-y-4.5 pt-4">
+            <span className="text-[9px] uppercase tracking-wider font-bold text-slate-500 flex items-center gap-1.5 select-none leading-none">
+              <Database size={10} className="text-blue-400 animate-pulse" />
+              <span>AI System Context memory</span>
+            </span>
+
+            <div className="space-y-3.5 text-[10px] text-slate-400 font-sans">
+              <div className="space-y-1">
+                <span className="text-slate-500 block">Selected Student context:</span>
+                <span className="font-semibold text-white">{selectedContext.student}</span>
+              </div>
+              <div className="space-y-1">
+                <span className="text-slate-500 block">Active curriculum:</span>
+                <span className="font-semibold text-white">{selectedContext.course}</span>
+              </div>
+              <div className="space-y-1">
+                <span className="text-slate-500 block">Assigned Faculty:</span>
+                <span className="font-semibold text-white">{selectedContext.faculty}</span>
+              </div>
+              <div className="flex justify-between items-center pt-2 border-t border-slate-900">
+                <span className="text-[9px] text-slate-500 uppercase font-mono">Memory Tokens</span>
+                <span className="font-mono text-blue-400 font-bold">{selectedContext.activeMemoryTokens}</span>
+              </div>
             </div>
           </div>
 
         </aside>
 
-        {/* Center Panel: Active Sandbox Chat Console */}
+        {/* PANEL 2: Active Sandbox Chat Console */}
         <section className="flex-1 flex flex-col justify-between h-full bg-slate-950/40 min-w-0 border-r border-white/5 relative">
           
-          {/* Header Details */}
-          <div className="px-6 py-4.5 border-b border-white/5 bg-[#050814]/50 flex items-center justify-between shrink-0">
+          <div className="px-6 py-4 border-b border-white/5 bg-[#050814]/50 flex items-center justify-between shrink-0">
             <div>
               <h2 className="text-sm font-bold text-white flex items-center gap-2 leading-none">
-                <Sparkles size={14} className="text-blue-400" />
+                <Terminal size={14} className="text-blue-400" />
                 <span>{activeConversation.title}</span>
               </h2>
-              <p className="text-[10px] text-slate-500 mt-1 font-semibold">Active SHIVIL AI Engine Console</p>
+              <p className="text-[10px] text-slate-500 mt-1.5 font-semibold">Active SHIVIL AI Engine Console</p>
             </div>
             
-            {/* Status indicators */}
             <div className="flex items-center gap-2">
               <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              <span className="text-[10px] font-bold text-slate-400 font-mono">Synced</span>
+              <span className="text-[10px] font-bold text-slate-400 font-mono">Autonomous Mode</span>
             </div>
           </div>
 
@@ -469,7 +487,7 @@ function AIAssistant() {
             </div>
           )}
 
-          {/* Conversation Sandbox Scroll */}
+          {/* Chat scroll box */}
           <div className="flex-1 overflow-y-auto p-6 space-y-6 scrollbar-thin">
             {activeConversation.messages.map((m, idx) => (
               <div 
@@ -478,7 +496,6 @@ function AIAssistant() {
                   m.sender === "user" ? "ml-auto flex-row-reverse" : ""
                 }`}
               >
-                {/* Avatar Icon */}
                 <div className={`w-9 h-9 rounded-xl border flex items-center justify-center shrink-0 ${
                   m.sender === "ai" 
                     ? "bg-gradient-to-br from-blue-600/10 to-purple-600/10 border-blue-500/20 text-blue-400" 
@@ -487,9 +504,8 @@ function AIAssistant() {
                   {m.sender === "ai" ? <Sparkles size={16} /> : activeName.charAt(0)}
                 </div>
 
-                {/* Bubble Container */}
-                <div className="space-y-3 flex-1 min-w-0">
-                  <div className={`p-4.5 rounded-2xl text-xs leading-relaxed border ${
+                <div className="space-y-3.5 flex-1 min-w-0">
+                  <div className={`p-4 rounded-2xl text-xs leading-relaxed border ${
                     m.sender === "user" 
                       ? "bg-slate-900 border-slate-800 text-slate-100" 
                       : "bg-slate-950/80 border-white/5 text-slate-300"
@@ -497,25 +513,34 @@ function AIAssistant() {
                     {m.text}
                   </div>
 
-                  {/* Render inline sub elements inside chat bubble if present */}
-                  {m.elements && (
-                    <div className="w-full pb-2">
-                      {m.elements}
+                  {/* Render TableData */}
+                  {m.tableData && (
+                    <div className="overflow-hidden rounded-xl border border-white/5 bg-slate-950 p-1">
+                      <table className="w-full text-left text-xs border-collapse">
+                        <thead>
+                          <tr className="bg-slate-900/50 border-b border-slate-800 text-[10px] uppercase font-bold text-slate-500">
+                            {Object.keys(m.tableData[0]).map((key, i) => (
+                              <th key={i} className="p-3">{key}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-900/50">
+                          {m.tableData.map((row, i) => (
+                            <tr key={i} className="hover:bg-slate-900/40 transition">
+                              {Object.values(row).map((val, k) => (
+                                <td key={k} className="p-3 text-white font-semibold">{val}</td>
+                              ))}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
                   )}
 
-                  {/* Render context actions sub buttons */}
-                  {m.actions && m.actions.length > 0 && (
-                    <div className="flex flex-wrap gap-2 pb-2">
-                      {m.actions.map((act, i) => (
-                        <button
-                          key={i}
-                          onClick={act.onClick}
-                          className="px-3 py-1.5 rounded-xl border border-slate-900 bg-slate-950 text-[10px] font-bold text-slate-400 hover:text-white hover:border-slate-800 transition cursor-pointer"
-                        >
-                          {act.label}
-                        </button>
-                      ))}
+                  {/* Render CodeBlock */}
+                  {m.codeBlock && (
+                    <div className="rounded-xl border border-slate-900 overflow-hidden text-left bg-slate-950 p-4 font-mono text-[10px] text-blue-400 select-text overflow-x-auto leading-normal">
+                      <pre><code>{m.codeBlock.code}</code></pre>
                     </div>
                   )}
                 </div>
@@ -536,10 +561,9 @@ function AIAssistant() {
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Input Bar console */}
+          {/* Chat input box */}
           <div className="p-5 border-t border-white/5 bg-[#050814]/30 shrink-0">
             <div className="flex items-center gap-3.5 p-2 bg-slate-950/60 border border-white/5 rounded-2xl relative">
-              {/* Mic action button */}
               <button
                 type="button"
                 onClick={handleVoiceSimulate}
@@ -548,20 +572,19 @@ function AIAssistant() {
                     ? "bg-red-500/20 text-red-400 animate-pulse" 
                     : "bg-slate-900 border border-slate-800 text-slate-500 hover:text-slate-300"
                 }`}
-                title="Trigger simulated voice assistant"
+                title="Trigger simulated voice input"
               >
                 <Mic size={15} />
               </button>
 
               {isListening ? (
                 <div className="flex-1 flex items-center justify-between px-3 h-10 select-none">
-                  <span className="text-xs text-red-400 font-semibold animate-pulse">Capturing simulated voice command...</span>
+                  <span className="text-xs text-red-400 font-semibold animate-pulse">Capturing voice logs...</span>
                   <div className="flex items-center gap-1 h-5">
                     <div className="w-0.5 h-2.5 bg-red-400 rounded-full animate-wave-1" />
                     <div className="w-0.5 h-4 bg-red-400 rounded-full animate-wave-2" />
                     <div className="w-0.5 h-3 bg-red-400 rounded-full animate-wave-3" />
                     <div className="w-0.5 h-5 bg-red-400 rounded-full animate-wave-4" />
-                    <div className="w-0.5 h-2 bg-red-400 rounded-full animate-wave-5" />
                   </div>
                 </div>
               ) : (
@@ -587,72 +610,106 @@ function AIAssistant() {
 
         </section>
 
-        {/* Right Panel: AI recommendations, report log & voice waveform (Hides on tablet/mobile) */}
-        <aside className="hidden xl:flex flex-col w-80 border-l border-white/5 bg-[#050814]/70 p-4 space-y-6 shrink-0 h-full overflow-y-auto">
+        {/* PANEL 3: Command Center & AI Workspace files */}
+        <aside className="hidden xl:flex flex-col w-96 border-l border-white/5 bg-[#050814]/70 p-5 space-y-6 shrink-0 h-full overflow-y-auto">
           
-          {/* Voice Assistant Interactive Widget */}
-          <div className="p-4.5 rounded-2xl bg-slate-950 border border-white/5 relative overflow-hidden group shadow-lg">
-            <div className="absolute top-0 right-0 w-24 h-24 bg-blue-500/5 rounded-full blur-2xl pointer-events-none" />
+          {/* Voice AI Wave Widget */}
+          <div className="p-4 rounded-2xl bg-slate-950 border border-white/5 relative overflow-hidden group shadow-lg">
+            <div className="absolute top-0 right-0 w-24 h-24 bg-purple-500/5 rounded-full blur-2xl pointer-events-none" />
             <h3 className="text-xs font-bold text-white flex items-center gap-2">
-              <Volume2 size={14} className="text-blue-400" />
-              <span>Voice Assistant</span>
+              <Volume2 size={14} className="text-purple-400" />
+              <span>Voice AI Assistant</span>
             </h3>
             
             <div className="mt-4 flex flex-col items-center py-4 bg-slate-900/30 rounded-xl border border-slate-900">
-              {/* Pulsing microphone status */}
               <div 
                 onClick={handleVoiceSimulate}
-                className={`w-12 h-12 rounded-full flex items-center justify-center border cursor-pointer transition-all duration-300 ${
+                className={`w-12 h-12 rounded-full flex items-center justify-center border cursor-pointer transition duration-200 ${
                   isListening 
                     ? "bg-red-500/10 border-red-500/30 text-red-400" 
-                    : "bg-slate-900/60 border-slate-800 text-slate-400 hover:border-blue-500/30 hover:text-blue-400"
+                    : "bg-slate-900/60 border-slate-800 text-slate-400 hover:border-purple-500/30 hover:text-purple-400"
                 }`}
               >
                 <Mic size={18} />
               </div>
               <span className="text-[10px] text-slate-500 font-semibold tracking-wide uppercase mt-3">
-                {isListening ? "Listening..." : "Tap to Speak"}
+                {isListening ? "Listening..." : "Speak to Command Center"}
               </span>
             </div>
           </div>
 
-          {/* AI Recommendations panel */}
+          {/* AI Quick Commands Grid */}
           <div className="space-y-3">
             <h3 className="text-xs font-bold text-white flex items-center gap-2 px-1">
-              <Sparkles size={13} className="text-purple-400" />
-              <span>AI Recommendations</span>
+              <Zap size={13} className="text-blue-400 animate-pulse" />
+              <span>AI Quick Commands</span>
             </h3>
-            <div className="space-y-2">
-              {recommendations.map((rec, idx) => (
-                <div key={idx} className="p-3.5 rounded-2xl bg-slate-950 border border-slate-900 flex items-start gap-3 hover:border-slate-800 transition">
-                  <AlertCircle size={14} className="text-purple-400 mt-0.5 shrink-0" />
-                  <div>
-                    <p className="text-[11px] font-bold text-white leading-none">{rec.title}</p>
-                    <p className="text-[9px] text-slate-500 leading-normal mt-1.5">{rec.desc}</p>
-                  </div>
-                </div>
-              ))}
+            <div className="grid grid-cols-2 gap-2">
+              <button 
+                onClick={() => handleSuggestionClick("Find student Priya Patel")}
+                className="py-2 px-3 text-left rounded-xl bg-slate-950 border border-slate-900 text-[10px] text-slate-400 hover:text-white hover:border-slate-800 transition cursor-pointer"
+              >
+                Find Student
+              </button>
+              <button 
+                onClick={() => handleSuggestionClick("Generate attendance shortage report")}
+                className="py-2 px-3 text-left rounded-xl bg-slate-950 border border-slate-900 text-[10px] text-slate-400 hover:text-white hover:border-slate-800 transition cursor-pointer"
+              >
+                Attendance Report
+              </button>
+              <button 
+                onClick={() => handleSuggestionClick("Predict dropout risk CSE")}
+                className="py-2 px-3 text-left rounded-xl bg-slate-950 border border-slate-900 text-[10px] text-slate-400 hover:text-white hover:border-slate-800 transition cursor-pointer"
+              >
+                Predict Dropout Risk
+              </button>
+              <button 
+                onClick={() => handleSuggestionClick("Generate faculty workload report")}
+                className="py-2 px-3 text-left rounded-xl bg-slate-950 border border-slate-900 text-[10px] text-slate-400 hover:text-white hover:border-slate-800 transition cursor-pointer"
+              >
+                Faculty Report
+              </button>
             </div>
           </div>
 
-          {/* Generated Reports log catalog */}
-          <div className="space-y-3">
-            <h3 className="text-xs font-bold text-white flex items-center gap-2 px-1">
-              <FileSpreadsheet size={13} className="text-blue-400" />
-              <span>Generated Reports</span>
+          {/* AI Workspace: Categorised files lists */}
+          <div className="space-y-3.5 flex-1 flex flex-col min-h-0">
+            <h3 className="text-xs font-bold text-white flex items-center gap-2 px-1 shrink-0">
+              <FolderDot size={13} className="text-purple-400" />
+              <span>AI OS Workspace</span>
             </h3>
-            <div className="space-y-2">
-              {reports.map((rep, idx) => (
-                <div key={idx} className="p-3 rounded-2xl bg-slate-950/60 border border-slate-900 flex items-center justify-between gap-3 hover:border-slate-800 transition group/rep">
+
+            {/* Sub-tab selection */}
+            <div className="flex flex-wrap gap-1 bg-slate-950 border border-white/5 p-1 rounded-xl shrink-0">
+              {(["Reports", "Documents", "Charts", "Notices", "Certificates"] as const).map(tab => (
+                <button
+                  key={tab}
+                  onClick={() => setActiveWorkspaceTab(tab)}
+                  className={`px-2.5 py-1.5 rounded-lg text-[9px] font-bold uppercase transition cursor-pointer ${
+                    activeWorkspaceTab === tab ? "bg-slate-900 text-blue-400" : "text-slate-500 hover:text-slate-300"
+                  }`}
+                >
+                  {tab}
+                </button>
+              ))}
+            </div>
+
+            {/* List category items */}
+            <div className="space-y-2 flex-1 overflow-y-auto min-h-0">
+              {filteredWorkspaceFiles.map((file, i) => (
+                <div key={i} className="p-3 rounded-2xl bg-slate-950 border border-slate-900 flex items-center justify-between hover:border-slate-850 transition group/item">
                   <div className="flex items-center gap-2.5 min-w-0">
-                    <FileText size={14} className="text-slate-500 group-hover/rep:text-blue-400 transition shrink-0" />
+                    <FileText size={14} className="text-slate-500 group-hover/item:text-blue-400 transition shrink-0" />
                     <div className="min-w-0">
-                      <p className="text-[10px] font-bold text-white truncate leading-none">{rep.name}</p>
-                      <p className="text-[8px] text-slate-500 mt-1 leading-none font-medium">{rep.size} • {rep.time}</p>
+                      <p className="text-[10px] font-bold text-white truncate leading-none">{file.name}</p>
+                      <p className="text-[8px] text-slate-500 mt-1.5 leading-none">{file.size} • Workspace</p>
                     </div>
                   </div>
-                  <button className="p-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-850 text-slate-400 hover:text-white transition shrink-0 cursor-pointer">
-                    <ChevronRight size={12} />
+                  <button 
+                    onClick={() => triggerToast(`Downloaded ${file.name}`)}
+                    className="p-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-850 text-slate-400 hover:text-white transition shrink-0 cursor-pointer"
+                  >
+                    <ChevronRight size={11} />
                   </button>
                 </div>
               ))}
