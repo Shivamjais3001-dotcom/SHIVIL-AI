@@ -18,7 +18,8 @@ import {
   Sparkles,
   ClipboardList,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Workflow
 } from "lucide-react";
 
 function Sidebar() {
@@ -92,6 +93,11 @@ function Sidebar() {
       path: "/hostel",
     },
     {
+      name: "Workflows",
+      icon: <Workflow size={18} />,
+      path: "/workflows",
+    },
+    {
       name: "AI Assistant",
       icon: <Bot size={18} />,
       path: "/assistant",
@@ -107,7 +113,7 @@ function Sidebar() {
   // Restructure visible routes depending on security clearance level
   const filteredMenuItems = menuItems.filter((item) => {
     if (activeRole === "Faculty") {
-      const allowed = ["Dashboard", "Students", "Faculty", "Courses", "Attendance", "Examination", "AI Assistant", "Settings"];
+      const allowed = ["Dashboard", "Students", "Faculty", "Courses", "Attendance", "Examination", "Workflows", "AI Assistant", "Settings"];
       return allowed.includes(item.name);
     }
     if (activeRole === "Student") {

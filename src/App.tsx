@@ -16,6 +16,7 @@ import Fees from "./pages/Fees";
 import Library from "./pages/Library";
 import Hostel from "./pages/Hostel";
 import AIAssistant from "./pages/AIAssistant";
+import Workflows from "./pages/Workflows";
 import Settings from "./pages/Settings";
 import DesignTest from "./pages/DesignTest";
 import CommandMenu from "./components/CommandMenu";
@@ -91,6 +92,7 @@ function App() {
         <Route path="/hostel" element={<Hostel />} />
         
         <Route path="/assistant" element={<AIAssistant />} />
+        <Route path="/workflows" element={<Workflows />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="/design" element={<DesignTest />} />
       </Routes>
