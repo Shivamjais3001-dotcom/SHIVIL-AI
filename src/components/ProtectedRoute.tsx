@@ -7,8 +7,10 @@ interface ProtectedRouteProps {
 }
 
 export default function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) {
-  const activeRole = localStorage.getItem("userRole");
-  const isAuthenticated = !!localStorage.getItem("auth_user") || activeRole === "Admin" || activeRole === "Faculty" || activeRole === "Student";
+  const authUserStr = localStorage.getItem("auth_user");
+  const authUser = authUserStr ? JSON.parse(authUserStr) : null;
+  const activeRole = authUser?.role || localStorage.getItem("userRole") || null;
+  const isAuthenticated = !!authUser || !!activeRole;
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;

@@ -1,8 +1,9 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { useState, useEffect } from "react";
+import { useState, useEffect, lazy, Suspense } from "react";
 import { Sparkles, X } from "lucide-react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import ProtectedRoute from "./components/ProtectedRoute";
+import ErrorBoundary from "./components/ErrorBoundary";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -13,23 +14,24 @@ const queryClient = new QueryClient({
   },
 });
 
-import Home from "./pages/Home";
-import Login from "./pages/LoginPage";
-import Dashboard from "./pages/Dashboard";
-import StudentManagement from "./pages/StudentManagement";
-import Faculty from "./pages/Faculty";
-import Courses from "./pages/Courses";
-import Attendance from "./pages/Attendance";
-import Examination from "./pages/Examination";
-import Reports from "./pages/Reports";
-import Placements from "./pages/Placements";
-import Fees from "./pages/Fees";
-import Library from "./pages/Library";
-import Hostel from "./pages/Hostel";
-import AIAssistant from "./pages/AIAssistant";
-import Workflows from "./pages/Workflows";
-import Settings from "./pages/Settings";
-import DesignTest from "./pages/DesignTest";
+// Code splitting dynamic page segments
+const Home = lazy(() => import("./pages/Home"));
+const Login = lazy(() => import("./pages/LoginPage"));
+const Dashboard = lazy(() => import("./pages/Dashboard"));
+const StudentManagement = lazy(() => import("./pages/StudentManagement"));
+const Faculty = lazy(() => import("./pages/Faculty"));
+const Courses = lazy(() => import("./pages/Courses"));
+const Attendance = lazy(() => import("./pages/Attendance"));
+const Examination = lazy(() => import("./pages/Examination"));
+const Reports = lazy(() => import("./pages/Reports"));
+const Placements = lazy(() => import("./pages/Placements"));
+const Fees = lazy(() => import("./pages/Fees"));
+const Library = lazy(() => import("./pages/Library"));
+const Hostel = lazy(() => import("./pages/Hostel"));
+const AIAssistant = lazy(() => import("./pages/AIAssistant"));
+const Workflows = lazy(() => import("./pages/Workflows"));
+const Settings = lazy(() => import("./pages/Settings"));
+const DesignTest = lazy(() => import("./pages/DesignTest"));
 import CommandMenu from "./components/CommandMenu";
 
 import notificationsData from "../mock-data/notifications.json";
@@ -63,8 +65,9 @@ function App() {
   }, []);
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <BrowserRouter>
       {/* Global command center shortcuts (Ctrl+K or Cmd+K) */}
       <CommandMenu />
 
@@ -87,29 +90,39 @@ function App() {
         </div>
       )}
       
-      <Routes>
-        <Route path="/" element={<Home />} />
-        <Route path="/login" element={<Login />} />
+      <Suspense fallback={
+        <div className="min-h-screen bg-[#030712] flex flex-col items-center justify-center text-xs text-slate-500 font-sans select-none space-y-3.5">
+          <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-blue-600 to-purple-600 flex items-center justify-center text-white shrink-0 animate-spin shadow-lg">
+            <Sparkles size={14} className="animate-pulse" />
+          </div>
+          <span className="font-bold tracking-widest uppercase text-[9px] text-slate-600 mt-2 animate-pulse">Initializing OS Module...</span>
+        </div>
+      }>
+        <Routes>
+          <Route path="/" element={<Home />} />
+          <Route path="/login" element={<Login />} />
 
-        <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-        <Route path="/students" element={<ProtectedRoute><StudentManagement /></ProtectedRoute>} />
-        <Route path="/faculty" element={<ProtectedRoute><Faculty /></ProtectedRoute>} />
-        <Route path="/courses" element={<ProtectedRoute><Courses /></ProtectedRoute>} />
-        <Route path="/attendance" element={<ProtectedRoute><Attendance /></ProtectedRoute>} />
-        <Route path="/examination" element={<ProtectedRoute><Examination /></ProtectedRoute>} />
-        <Route path="/reports" element={<ProtectedRoute><Reports /></ProtectedRoute>} />
-        <Route path="/placements" element={<ProtectedRoute><Placements /></ProtectedRoute>} />
-        <Route path="/fees" element={<ProtectedRoute><Fees /></ProtectedRoute>} />
-        <Route path="/library" element={<ProtectedRoute><Library /></ProtectedRoute>} />
-        <Route path="/hostel" element={<ProtectedRoute><Hostel /></ProtectedRoute>} />
-        
-        <Route path="/assistant" element={<ProtectedRoute><AIAssistant /></ProtectedRoute>} />
-        <Route path="/workflows" element={<ProtectedRoute><Workflows /></ProtectedRoute>} />
-        <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
-        <Route path="/design" element={<ProtectedRoute><DesignTest /></ProtectedRoute>} />
-      </Routes>
+          <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+          <Route path="/students" element={<ProtectedRoute><StudentManagement /></ProtectedRoute>} />
+          <Route path="/faculty" element={<ProtectedRoute><Faculty /></ProtectedRoute>} />
+          <Route path="/courses" element={<ProtectedRoute><Courses /></ProtectedRoute>} />
+          <Route path="/attendance" element={<ProtectedRoute><Attendance /></ProtectedRoute>} />
+          <Route path="/examination" element={<ProtectedRoute><Examination /></ProtectedRoute>} />
+          <Route path="/reports" element={<ProtectedRoute><Reports /></ProtectedRoute>} />
+          <Route path="/placements" element={<ProtectedRoute><Placements /></ProtectedRoute>} />
+          <Route path="/fees" element={<ProtectedRoute><Fees /></ProtectedRoute>} />
+          <Route path="/library" element={<ProtectedRoute><Library /></ProtectedRoute>} />
+          <Route path="/hostel" element={<ProtectedRoute><Hostel /></ProtectedRoute>} />
+          
+          <Route path="/assistant" element={<ProtectedRoute><AIAssistant /></ProtectedRoute>} />
+          <Route path="/workflows" element={<ProtectedRoute><Workflows /></ProtectedRoute>} />
+          <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+          <Route path="/design" element={<ProtectedRoute><DesignTest /></ProtectedRoute>} />
+        </Routes>
+      </Suspense>
     </BrowserRouter>
   </QueryClientProvider>
+</ErrorBoundary>
   );
 }
 

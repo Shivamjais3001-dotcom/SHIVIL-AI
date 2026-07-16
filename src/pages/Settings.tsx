@@ -117,17 +117,17 @@ function Settings() {
         {/* Workspace body split panels */}
         <div className="flex-1 flex flex-col lg:flex-row overflow-hidden min-h-0">
           
-          {/* LEFT SUB-NAVBAR TABS (w-64) */}
-          <aside className="w-64 border-r border-white/5 bg-[#050814]/70 p-4 space-y-2 shrink-0 h-full overflow-y-auto">
+          {/* LEFT SUB-NAVBAR TABS (w-full on mobile, w-64 on desktop) */}
+          <aside className="w-full lg:w-64 border-b lg:border-b-0 lg:border-r border-white/5 bg-[#050814]/70 p-4 space-y-2 shrink-0 h-auto lg:h-full overflow-y-auto select-none">
             
-            <span className="text-[9px] uppercase tracking-wider font-bold text-slate-500 px-2 select-none">
+            <span className="text-[9px] uppercase tracking-wider font-bold text-slate-500 px-2 select-none hidden lg:block">
               Categories
             </span>
 
-            <div className="space-y-1">
+            <div className="flex flex-row lg:flex-col overflow-x-auto lg:overflow-x-visible gap-1.5 lg:gap-1 pb-1 lg:pb-0 scrollbar-none">
               <button
                 onClick={() => setActiveTab("organization")}
-                className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold cursor-pointer transition ${
+                className={`flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold cursor-pointer transition shrink-0 lg:shrink w-auto lg:w-full ${
                   activeTab === "organization" ? "bg-slate-900 text-white border border-white/5" : "text-slate-400 hover:bg-slate-950/50 hover:text-slate-200"
                 }`}
               >
@@ -137,7 +137,7 @@ function Settings() {
 
               <button
                 onClick={() => setActiveTab("roles")}
-                className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold cursor-pointer transition ${
+                className={`flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold cursor-pointer transition shrink-0 lg:shrink w-auto lg:w-full ${
                   activeTab === "roles" ? "bg-slate-900 text-white border border-white/5" : "text-slate-400 hover:bg-slate-950/50 hover:text-slate-200"
                 }`}
               >
@@ -147,52 +147,52 @@ function Settings() {
 
               <button
                 onClick={() => setActiveTab("security")}
-                className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold cursor-pointer transition ${
+                className={`flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold cursor-pointer transition shrink-0 lg:shrink w-auto lg:w-full ${
                   activeTab === "security" ? "bg-slate-900 text-white border border-white/5" : "text-slate-400 hover:bg-slate-950/50 hover:text-slate-200"
                 }`}
               >
                 <Key size={14} />
-                <span>API Keys & Security</span>
+                <span>API Keys</span>
               </button>
 
               <button
                 onClick={() => setActiveTab("audit")}
-                className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold cursor-pointer transition ${
+                className={`flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold cursor-pointer transition shrink-0 lg:shrink w-auto lg:w-full ${
                   activeTab === "audit" ? "bg-slate-900 text-white border border-white/5" : "text-slate-400 hover:bg-slate-950/50 hover:text-slate-200"
                 }`}
               >
                 <FolderLock size={14} />
-                <span>Audit & Log ledger</span>
+                <span>Audit Log</span>
               </button>
 
               <button
                 onClick={() => setActiveTab("ai")}
-                className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold cursor-pointer transition ${
+                className={`flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold cursor-pointer transition shrink-0 lg:shrink w-auto lg:w-full ${
                   activeTab === "ai" ? "bg-slate-900 text-white border border-white/5" : "text-slate-400 hover:bg-slate-950/50 hover:text-slate-200"
                 }`}
               >
                 <Sparkles size={14} />
-                <span>AI Configuration</span>
+                <span>AI Config</span>
               </button>
 
               <button
                 onClick={() => setActiveTab("billing")}
-                className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold cursor-pointer transition ${
+                className={`flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold cursor-pointer transition shrink-0 lg:shrink w-auto lg:w-full ${
                   activeTab === "billing" ? "bg-slate-900 text-white border border-white/5" : "text-slate-400 hover:bg-slate-950/50 hover:text-slate-200"
                 }`}
               >
                 <CreditCard size={14} />
-                <span>Billing & Subscription</span>
+                <span>Billing</span>
               </button>
 
               <button
                 onClick={() => setActiveTab("integrations")}
-                className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold cursor-pointer transition ${
+                className={`flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold cursor-pointer transition shrink-0 lg:shrink w-auto lg:w-full ${
                   activeTab === "integrations" ? "bg-slate-900 text-white border border-white/5" : "text-slate-400 hover:bg-slate-950/50 hover:text-slate-200"
                 }`}
               >
                 <Layers size={14} />
-                <span>Integrations & Backups</span>
+                <span>Backups</span>
               </button>
             </div>
 

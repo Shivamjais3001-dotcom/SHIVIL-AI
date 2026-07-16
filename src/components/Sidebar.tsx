@@ -23,7 +23,9 @@ import {
 } from "lucide-react";
 
 function Sidebar() {
-  const activeRole = localStorage.getItem("userRole") || "Admin";
+  const authUserStr = localStorage.getItem("auth_user");
+  const authUser = authUserStr ? JSON.parse(authUserStr) : null;
+  const activeRole = authUser?.role || localStorage.getItem("userRole") || "Admin";
   const activeName = localStorage.getItem("adminName") || "Shivam Jaiswal";
 
   const [isCollapsed, setIsCollapsed] = useState(() => {

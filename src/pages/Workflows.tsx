@@ -170,10 +170,10 @@ function Workflows() {
         </div>
 
         {/* Studio Content panels */}
-        <div className="flex-1 flex flex-col lg:flex-row overflow-hidden min-h-0">
+        <div className="flex-1 flex flex-col lg:flex-row overflow-y-auto lg:overflow-hidden min-h-0">
           
-          {/* LEFT COLUMN: Library, AI Prompt Generator & Templates (w-80) */}
-          <aside className="w-80 border-r border-white/5 bg-[#050814]/70 p-4 space-y-6 overflow-y-auto shrink-0 h-full">
+          {/* LEFT COLUMN: Library, AI Prompt & Templates (w-full on mobile, w-80 on desktop) */}
+          <aside className="w-full lg:w-80 border-b lg:border-b-0 lg:border-r border-white/5 bg-[#050814]/70 p-4 space-y-6 overflow-y-auto shrink-0 h-auto lg:h-full">
             
             {/* AI Workflow Generator */}
             <div className="p-4 rounded-2xl bg-slate-950 border border-white/5 space-y-4">
@@ -341,8 +341,8 @@ function Workflows() {
 
           </section>
 
-          {/* RIGHT COLUMN: Node Parameter Configuration panel (w-80) */}
-          <aside className="w-80 border-l border-white/5 bg-[#050814]/70 p-4 space-y-6 overflow-y-auto shrink-0 h-full">
+          {/* RIGHT COLUMN: Node Parameter Configuration panel (w-full on mobile, w-80 on desktop) */}
+          <aside className="w-full lg:w-80 border-t lg:border-t-0 lg:border-l border-white/5 bg-[#050814]/70 p-4 space-y-6 overflow-y-auto shrink-0 h-auto lg:h-full">
             
             <div className="flex items-center gap-2 pb-3 border-b border-slate-900 select-none">
               <Sliders size={13} className="text-blue-400" />

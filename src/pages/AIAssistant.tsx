@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import Sidebar from "../components/Sidebar";
+import { aiCoreService } from "../services/aiCore";
 import { 
   Users, 
   Calendar, 
@@ -153,8 +154,8 @@ function AIAssistant() {
     setTimeout(() => setToastMessage(""), 3500);
   };
 
-  // Processing input queries
-  const processQuery = (text: string) => {
+  // Processing input queries using active AI Service Layer
+  const processQuery = async (text: string) => {
     if (!text.trim()) return;
 
     // User Message
@@ -166,70 +167,32 @@ function AIAssistant() {
     setInputText("");
     setIsTyping(true);
 
-    setTimeout(() => {
-      const query = text.toLowerCase().trim();
-      let replyText = "";
-      let replyCodeBlock: { lang: string; code: string } | undefined;
-      let replyTable: Array<Record<string, string>> | undefined;
-
-      // Intent Matcher 1: Attendance Report
-      if (query.includes("attendance") || query.includes("shortage")) {
-        replyText = "🔍 Attendance records parsed. Here is the active warning index table for Q3:";
-        replyTable = [
-          { Student: "Neha Reddy", Roll: "APEX-2026-002", Attendance: "58%", Status: "Critical" },
-          { Student: "Anya Sen", Roll: "APEX-2026-044", Attendance: "64%", Status: "Alert" },
-          { Student: "Rohan Gupta", Roll: "APEX-2026-118", Attendance: "74%", Status: "Borderline" }
-        ];
-      } 
-      // Intent Matcher 2: Timetable / Schedule
-      else if (query.includes("timetable") || query.includes("schedule") || query.includes("meeting")) {
-        replyText = "📅 Generated optimal timetable configuration based on lab loads:";
-        replyCodeBlock = {
-          lang: "json",
-          code: JSON.stringify({
-            semester: "III-A",
-            days: ["Monday", "Wednesday"],
-            slots: [
-              { time: "09:00 AM", course: "CS-302 Algorithms", room: "Room 402" },
-              { time: "11:30 AM", course: "CS-101 Introduction to AI", room: "Lab 3" }
-            ]
-          }, null, 2)
-        };
-      }
-      // Intent Matcher 3: Dropout risk
-      else if (query.includes("dropout") || query.includes("risk")) {
-        replyText = "🔮 AI predictive dropout risk model scores:";
-        replyTable = [
-          { Student: "Neha Reddy", RiskScore: "88%", Cause: "Attendance shortfall", Action: "Tutorial check-in" },
-          { Student: "Anya Sen", RiskScore: "62%", Cause: "Syllabus delay", Action: "Mentoring assigned" }
-        ];
-      }
-      // Intent Matcher 4: Faculty report
-      else if (query.includes("faculty")) {
-        replyText = "📂 Faculty workload indexes finalized:";
-        replyTable = [
-          { Professor: "Dr. Sarah Jenkins", Department: "CSE", Uptime: "96%", WeeklyLoad: "14 hrs" },
-          { Prof: "Marcus Vance", Department: "ECE", Uptime: "88%", WeeklyLoad: "16 hrs" }
-        ];
-      }
-      // Fallback
-      else {
-        replyText = "💬 Command complete. Ask me to 'generate attendance report', 'predict dropout risk', 'create notice', or 'create timetable'.";
-      }
-
+    try {
+      const response = await aiCoreService.generateResponse(text, "Base", { provider: "gemini" });
       setConversations(prev => 
         prev.map(c => c.id === activeConvId ? {
           ...c,
           messages: [...updatedMessages, {
             sender: "ai",
-            text: replyText,
-            codeBlock: replyCodeBlock,
-            tableData: replyTable
+            text: response.text,
+            codeBlock: response.codeBlock,
+            tableData: response.tableData
           }]
         } : c)
       );
+    } catch (err) {
+      setConversations(prev => 
+        prev.map(c => c.id === activeConvId ? {
+          ...c,
+          messages: [...updatedMessages, {
+            sender: "ai",
+            text: "🚨 Generation failed. LLM provider offline or timed out."
+          }]
+        } : c)
+      );
+    } finally {
       setIsTyping(false);
-    }, 1200);
+    }
   };
 
   const handleSuggestionClick = (queryText: string) => {
