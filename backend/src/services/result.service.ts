@@ -21,29 +21,32 @@ export class ResultService {
     academicYear: string;
     universityId?: string | null;
     processedById: string;
+    cachedPolicy?: any;
   }) {
     const { studentId, semester, academicYear, universityId, processedById } = params;
 
-    // 1. Fetch all marks for the student in this semester
-    const allMarks = await markRepo.findByStudent(studentId);
-    const semesterMarks = (allMarks as any[]).filter(
-      (m) =>
-        m.exam?.semester === semester &&
-        m.exam?.academicYear === academicYear &&
-        m.isLocked === true // Only process locked/approved marks
+    // 1. Fetch marks for this student for this specific semester only (filtered at DB level)
+    const semesterMarks = await markRepo.findByStudent(studentId, {
+      semester,
+      academicYear
+    });
+
+    // Only process approved or locked marks
+    const lockedMarks = (semesterMarks as any[]).filter(
+      (m) => m.isLocked === true || m.approvalStatus === "LOCKED" || m.approvalStatus === "APPROVED"
     );
 
-    if (semesterMarks.length === 0) {
+    if (lockedMarks.length === 0) {
       throw ApiError.notFound(
-        `No locked marks found for student ${studentId} in semester ${semester}, year ${academicYear}.`
+        `No locked or approved marks found for student ${studentId} in semester ${semester}, year ${academicYear}.`
       );
     }
 
-    // 2. Get university grading policy
-    const policy = await policyRepo.findByUniversity(universityId || null);
+    // 2. Get university grading policy (use cached policy if provided, preventing N+1 queries)
+    const policy = params.cachedPolicy || await policyRepo.findByUniversity(universityId || null);
 
     // 3. Build subject results list
-    const subjectResults: any[] = semesterMarks.map((m) => ({
+    const subjectResults: any[] = lockedMarks.map((m) => ({
       subjectId: m.exam?.subjectId,
       subjectCode: m.exam?.subject?.code || "",
       subjectName: m.exam?.subject?.name || "Unknown Subject",
@@ -139,7 +142,7 @@ export class ResultService {
     };
   }
 
-  // ─── BATCH PROCESS ALL STUDENTS IN A SEMESTER ───────────────────────
+  // ─── ASYNC BATCH PROCESS ALL STUDENTS IN A SEMESTER ────────────────
   async processBatchResults(params: {
     semester: string;
     academicYear: string;
@@ -149,49 +152,164 @@ export class ResultService {
   }) {
     const { semester, academicYear, universityId, branch, processedById } = params;
 
-    // Find all students with locked marks in this semester
-    const where: any = {
-      exam: {
+    // 1. Create a ResultProcessingJob record with status QUEUED
+    const job = await (prisma as any).resultProcessingJob.create({
+      data: {
+        universityId: universityId || null,
         semester,
         academicYear,
-        ...(universityId ? { universityId } : {}),
-        isLocked: true
-      },
-      ...(branch ? { student: { branch } } : {})
-    };
+        batchFilter: branch ? { branch } : {},
+        status: "QUEUED",
+        triggeredById: processedById
+      }
+    });
 
-    const allMarks = await (prisma as any).examMark.findMany({
-      where,
-      select: { studentId: true },
-      distinct: ["studentId"]
-    } as any);
+    // 2. Offload processing to background thread/task to avoid blocking Express event loop
+    setImmediate(() => {
+      this.runBatchJob(job.id, params).catch((err: any) => {
+        console.error(`Fatal crash in background results batch job ${job.id}:`, err);
+      });
+    });
 
-    const studentIds = (allMarks as any[]).map((m: any) => m.studentId);
-    const results: any[] = [];
-    const errors: any[] = [];
+    // 3. Return the queued job details immediately (with 202 Accepted in controller)
+    return job;
+  }
 
-    for (const studentId of studentIds) {
-      try {
-        const result = await this.processStudentResult({
-          studentId,
+  // ─── BACKGROUND BATCH JOB RUNNER (NON-BLOCKING CHUNK WORKER) ───────────
+  private async runBatchJob(jobId: string, params: {
+    semester: string;
+    academicYear: string;
+    universityId?: string | null;
+    branch?: string;
+    processedById: string;
+  }) {
+    const { semester, academicYear, universityId, branch, processedById } = params;
+
+    try {
+      // Update job status to PROCESSING
+      await (prisma as any).resultProcessingJob.update({
+        where: { id: jobId },
+        data: { status: "PROCESSING", startedAt: new Date() }
+      });
+
+      // Find all students with locked/approved marks in this semester
+      const where: any = {
+        exam: {
           semester,
           academicYear,
-          universityId,
-          processedById
-        });
-        results.push({ studentId, status: "SUCCESS", resultStatus: result.resultStatus });
-      } catch (err: any) {
-        errors.push({ studentId, status: "FAILED", error: err.message });
-      }
-    }
+          isLocked: true
+        }
+      };
+      if (universityId) where.exam.universityId = universityId;
+      if (branch) where.student = { branch };
 
-    return {
-      totalStudents: studentIds.length,
-      processed: results.length,
-      failed: errors.length,
-      results,
-      errors
-    };
+      const allMarks = await (prisma as any).examMark.findMany({
+        where,
+        select: { studentId: true },
+        distinct: ["studentId"]
+      });
+
+      const studentIds = (allMarks as any[]).map((m: any) => m.studentId);
+
+      if (studentIds.length === 0) {
+        await (prisma as any).resultProcessingJob.update({
+          where: { id: jobId },
+          data: {
+            status: "COMPLETED",
+            totalStudents: 0,
+            completedAt: new Date()
+          }
+        });
+        return;
+      }
+
+      await (prisma as any).resultProcessingJob.update({
+        where: { id: jobId },
+        data: { totalStudents: studentIds.length }
+      });
+
+      // Cache grading policy exactly once for the entire batch
+      const cachedPolicy = await policyRepo.findByUniversity(universityId || null);
+
+      let processedCount = 0;
+      let failedCount = 0;
+      const errorLog: any[] = [];
+
+      // Process in concurrency-limited chunks of 20
+      const chunkSize = 20;
+      for (let i = 0; i < studentIds.length; i += chunkSize) {
+        const chunk = studentIds.slice(i, i + chunkSize);
+
+        const results = await Promise.allSettled(
+          chunk.map(async (studentId) => {
+            return this.processStudentResult({
+              studentId,
+              semester,
+              academicYear,
+              universityId,
+              processedById,
+              cachedPolicy
+            });
+          })
+        );
+
+        for (let j = 0; j < results.length; j++) {
+          const res = results[j];
+          const studentId = chunk[j];
+          if (res.status === "fulfilled") {
+            processedCount++;
+          } else {
+            failedCount++;
+            errorLog.push({
+              studentId,
+              error: res.reason?.message || "Unknown error during calculation"
+            });
+          }
+        }
+
+        // Update progress in database incrementally after each chunk completes
+        await (prisma as any).resultProcessingJob.update({
+          where: { id: jobId },
+          data: {
+            processed: processedCount,
+            failed: failedCount,
+            errorLog: errorLog.length > 0 ? errorLog : undefined
+          }
+        });
+
+        // Yield to let other operations execute on Node's Event Loop
+        await new Promise((resolve) => setImmediate(resolve));
+      }
+
+      const finalStatus = failedCount === studentIds.length ? "FAILED" : "COMPLETED";
+      await (prisma as any).resultProcessingJob.update({
+        where: { id: jobId },
+        data: {
+          status: finalStatus,
+          completedAt: new Date()
+        }
+      });
+
+    } catch (error: any) {
+      console.error(`Batch processing job ${jobId} failed with critical error:`, error);
+      await (prisma as any).resultProcessingJob.update({
+        where: { id: jobId },
+        data: {
+          status: "FAILED",
+          completedAt: new Date(),
+          errorLog: { message: error.message || "Fatal error during batch execution." }
+        }
+      }).catch((err: any) => console.error("Error updating failed job:", err));
+    }
+  }
+
+  // ─── GET JOB STATUS ─────────────────────────────────────────────────
+  async getJobStatus(jobId: string) {
+    const job = await (prisma as any).resultProcessingJob.findUnique({
+      where: { id: jobId }
+    });
+    if (!job) throw ApiError.notFound("Result processing job not found.");
+    return job;
   }
 
   // ─── GET STUDENT RESULT SUMMARY ─────────────────────────────────────
@@ -257,6 +375,11 @@ export class ResultService {
     const latestSummary = (summaries as any[]).slice(-1)[0];
     const graduationEligible = latestSummary?.isEligibleForGraduation || false;
 
+    // Filter to only include approved or locked marks in the transcript
+    const approvedMarks = (allMarks as any[]).filter(
+      (m) => m.isLocked === true || m.approvalStatus === "LOCKED" || m.approvalStatus === "APPROVED"
+    );
+
     return {
       generatedAt: new Date().toISOString(),
       student: {
@@ -273,7 +396,7 @@ export class ResultService {
       graduationEligible,
       creditSystem: (policy as any).creditSystem || "10_POINT",
       semesters: summaries,
-      marksDetail: allMarks
+      marksDetail: approvedMarks
     };
   }
 

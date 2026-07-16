@@ -223,8 +223,9 @@ export class ExamMarkRepository {
     creditPoints?: number;
     submittedById?: string;
     auditTrail?: any;
-  }) {
-    const existing = await (prisma as any).examMark.findUnique({
+  }, tx?: any) {
+    const db = tx || prisma;
+    const existing = await (db as any).examMark.findUnique({
       where: { examId_studentId: { examId: data.examId, studentId: data.studentId } } as any
     } as any);
 
@@ -239,14 +240,14 @@ export class ExamMarkRepository {
       if (!(existing as any).originalMarks) {
         payload.originalMarks = (existing as any).totalMarks;
       }
-      return (prisma as any).examMark.update({
+      return (db as any).examMark.update({
         where: { id: (existing as any).id } as any,
         data: payload,
         include: { student: true }
       } as any);
     }
 
-    return (prisma as any).examMark.create({
+    return (db as any).examMark.create({
       data: payload,
       include: { student: true }
     } as any);
@@ -296,8 +297,10 @@ export class ExamMarkRepository {
     newTotal: number;
     grade?: string;
     gradePoint?: number;
-  }) {
-    return (prisma as any).examMark.update({
+    creditPoints?: number;
+  }, tx?: any) {
+    const db = tx || prisma;
+    return (db as any).examMark.update({
       where: { id: markId } as any,
       data: {
         moderatedMarks: data.newTotal,
@@ -306,6 +309,7 @@ export class ExamMarkRepository {
         totalMarks: data.newTotal,
         grade: data.grade,
         gradePoint: data.gradePoint,
+        creditPoints: data.creditPoints,
         approvalStatus: "UNDER_REVIEW"
       } as any
     } as any);
@@ -316,7 +320,8 @@ export class ExamMarkRepository {
     actorId: string;
     rejectionReason?: string;
     isApproved?: boolean;
-  }) {
+  }, tx?: any) {
+    const db = tx || prisma;
     const updateData: any = {
       approvalStatus: data.approvalStatus,
       approvedById: data.actorId,
@@ -324,7 +329,7 @@ export class ExamMarkRepository {
     };
     if (data.rejectionReason) updateData.rejectionReason = data.rejectionReason;
 
-    return (prisma as any).examMark.update({
+    return (db as any).examMark.update({
       where: { id: markId } as any,
       data: updateData
     } as any);
@@ -337,8 +342,9 @@ export class ExamMarkRepository {
     } as any);
   }
 
-  async lockAllForExam(examId: string) {
-    return (prisma as any).examMark.updateMany({
+  async lockAllForExam(examId: string, tx?: any) {
+    const db = tx || prisma;
+    return (db as any).examMark.updateMany({
       where: { examId, approvalStatus: "APPROVED" } as any,
       data: { isLocked: true, approvalStatus: "LOCKED" } as any
     } as any);
@@ -360,6 +366,17 @@ export class ExamMarkRepository {
     examType?: string;
   }) {
     const where: any = { studentId, deletedAt: null };
+
+    if (params) {
+      const examFilter: any = {};
+      if (params.semester) examFilter.semester = params.semester;
+      if (params.academicYear) examFilter.academicYear = params.academicYear;
+      if (params.examType) examFilter.examType = params.examType;
+
+      if (Object.keys(examFilter).length > 0) {
+        where.exam = examFilter;
+      }
+    }
 
     return (prisma as any).examMark.findMany({
       where,
@@ -548,8 +565,9 @@ export class ExamAuditRepository {
     newValue?: any;
     ipAddress?: string;
     metadata?: any;
-  }) {
-    return (prisma as any).examAuditLog.create({ data } as any);
+  }, tx?: any) {
+    const db = tx || prisma;
+    return (db as any).examAuditLog.create({ data } as any);
   }
 
   async findByExam(examId: string, limit: number = 50) {

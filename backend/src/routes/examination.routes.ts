@@ -227,6 +227,12 @@ router.post(
 );
 
 router.get(
+  "/results/jobs/:id",
+  authorize("SUPER_ADMIN", "UNIVERSITY_ADMIN", "EXAM_CONTROLLER"),
+  resultCtrl.getJobStatus
+);
+
+router.get(
   "/results/semester",
   authorize("SUPER_ADMIN", "UNIVERSITY_ADMIN", "EXAM_CONTROLLER", "HOD", "FACULTY"),
   resultCtrl.getSemesterResults

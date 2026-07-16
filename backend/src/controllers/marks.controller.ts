@@ -179,14 +179,19 @@ export class MarksController {
   async processReEvaluation(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
       const actorId = req.user?.userId || "SYSTEM";
-      const result = await reEvalRepo.updateStatus(req.params.id, {
+      const actorRole = req.user?.role || "EXAM_CONTROLLER";
+      const universityId = req.user?.universityId || null;
+
+      const result = await marksService.processReEvaluation(req.params.id, {
         status: req.body.status,
-        reviewedById: actorId,
         reviewNotes: req.body.reviewNotes,
         revisedMarks: req.body.revisedMarks,
         revisedGrade: req.body.revisedGrade,
         previousMarks: req.body.previousMarks,
-        previousGrade: req.body.previousGrade
+        previousGrade: req.body.previousGrade,
+        actorId,
+        actorRole,
+        universityId
       });
       return sendSuccessResponse(res, result, "Re-evaluation processed successfully.");
     } catch (error) { next(error); }

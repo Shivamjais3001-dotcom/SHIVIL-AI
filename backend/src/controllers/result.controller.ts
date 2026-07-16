@@ -23,12 +23,12 @@ export class ResultController {
     } catch (error) { next(error); }
   }
 
-  // ─── BATCH PROCESS ENTIRE SEMESTER ──────────────────────────────────
+  // ─── BATCH PROCESS ENTIRE SEMESTER (ASYNC QUEUE) ────────────────────
   async processBatchResults(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
       const processedById = req.user?.userId || "SYSTEM";
       const universityId = req.user?.universityId || null;
-      const result = await resultService.processBatchResults({
+      const job = await resultService.processBatchResults({
         semester: req.body.semester,
         academicYear: req.body.academicYear,
         universityId,
@@ -37,10 +37,18 @@ export class ResultController {
       });
       return sendSuccessResponse(
         res,
-        result,
-        `Batch result processing complete. ${result.processed}/${result.totalStudents} students processed.`,
-        201
+        job,
+        `Batch result processing job queued. Query status using job ID.`,
+        202
       );
+    } catch (error) { next(error); }
+  }
+
+  // ─── GET BATCH JOB STATUS ───────────────────────────────────────────
+  async getJobStatus(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const job = await resultService.getJobStatus(req.params.id);
+      return sendSuccessResponse(res, job, "Batch processing job status retrieved.");
     } catch (error) { next(error); }
   }
 
