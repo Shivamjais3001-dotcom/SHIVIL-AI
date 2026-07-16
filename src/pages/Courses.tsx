@@ -3,6 +3,7 @@ import Sidebar from "../components/Sidebar";
 import CourseHeader from "../components/courses/CourseHeader";
 import CourseTable from "../components/courses/CourseTable";
 import CourseModal from "../components/courses/CourseModal";
+import CourseWorkspace from "../components/courses/CourseWorkspace";
 import type { CourseType } from "../types/course";
 import { courseService } from "../services/courseService";
 import { AlertCircle } from "lucide-react";
@@ -15,6 +16,7 @@ function Courses() {
   const [filterDept, setFilterDept] = useState("All");
   const [showModal, setShowModal] = useState(false);
   const [editingCourse, setEditingCourse] = useState<CourseType | null>(null);
+  const [selectedCourse, setSelectedCourse] = useState<CourseType | null>(null);
 
   const activeRole = localStorage.getItem("userRole") || "Admin";
 
@@ -100,6 +102,26 @@ function Courses() {
     setShowModal(true);
   };
 
+  if (selectedCourse) {
+    return (
+      <div className="flex min-h-screen bg-[#030712]">
+        <Sidebar />
+        <main className="flex-1 p-6 md:p-8 overflow-y-auto min-w-0">
+          <div className="max-w-7xl mx-auto">
+            <CourseWorkspace 
+              course={selectedCourse} 
+              onBack={() => setSelectedCourse(null)} 
+              onEdit={(c) => {
+                setSelectedCourse(null);
+                handleEdit(c);
+              }} 
+            />
+          </div>
+        </main>
+      </div>
+    );
+  }
+
   return (
     <div className="flex min-h-screen bg-[#030712]">
       <Sidebar />
@@ -145,6 +167,7 @@ function Courses() {
               courses={filteredCourses}
               onEdit={handleEdit}
               onDelete={handleDelete}
+              onViewWorkspace={setSelectedCourse}
             />
           )}
 

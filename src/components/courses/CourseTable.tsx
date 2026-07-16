@@ -1,16 +1,18 @@
-import { Pencil, Trash2 } from "lucide-react";
+import { Pencil, Trash2, Sparkles } from "lucide-react";
 import type { CourseType } from "../../types/course";
 
 interface CourseTableProps {
   courses: CourseType[];
   onEdit: (course: CourseType) => void;
   onDelete: (id: number) => void;
+  onViewWorkspace: (course: CourseType) => void;
 }
 
 function CourseTable({
   courses,
   onEdit,
   onDelete,
+  onViewWorkspace
 }: CourseTableProps) {
   return (
     <div className="rounded-3xl border border-white/5 bg-slate-950/40 overflow-hidden shadow-2xl overflow-x-auto">
@@ -46,12 +48,22 @@ function CourseTable({
                     <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-600/10 to-teal-600/10 border border-emerald-500/20 flex items-center justify-center font-bold text-emerald-400 text-xs font-mono">
                       {course.courseCode.substring(0, 2)}
                     </div>
-                    <span className="text-xs font-bold text-white font-mono">{course.courseCode}</span>
+                    <span 
+                      onClick={() => onViewWorkspace(course)}
+                      className="text-xs font-bold text-white font-mono hover:text-blue-400 transition cursor-pointer"
+                    >
+                      {course.courseCode}
+                    </span>
                   </div>
                 </td>
 
                 <td className="px-6 py-4 text-xs font-semibold text-slate-200">
-                  {course.courseName}
+                  <span 
+                    onClick={() => onViewWorkspace(course)}
+                    className="hover:text-blue-400 transition cursor-pointer"
+                  >
+                    {course.courseName}
+                  </span>
                 </td>
 
                 <td className="px-6 py-4 text-xs text-slate-400">
@@ -79,15 +91,22 @@ function CourseTable({
                 <td className="px-6 py-4 text-right">
                   <div className="inline-flex gap-2">
                     <button
+                      onClick={() => onViewWorkspace(course)}
+                      className="p-2 rounded-lg bg-slate-900 border border-slate-800 text-purple-400 hover:text-white hover:border-purple-600/35 transition cursor-pointer"
+                      title="View Course Intelligence Workspace"
+                    >
+                      <Sparkles size={12} className="animate-pulse" />
+                    </button>
+                    <button
                       onClick={() => onEdit(course)}
-                      className="p-2 rounded-lg bg-slate-900 border border-slate-800 text-slate-400 hover:text-white hover:border-slate-700 transition"
+                      className="p-2 rounded-lg bg-slate-900 border border-slate-800 text-slate-400 hover:text-white hover:border-slate-700 transition cursor-pointer"
                       title="Edit syllabus"
                     >
                       <Pencil size={12} />
                     </button>
                     <button
                       onClick={() => onDelete(course.id)}
-                      className="p-2 rounded-lg bg-slate-900 border border-slate-800 text-red-400 hover:bg-red-500/10 hover:border-red-500/20 transition"
+                      className="p-2 rounded-lg bg-slate-900 border border-slate-800 text-red-400 hover:bg-red-500/10 hover:border-red-500/20 transition cursor-pointer"
                       title="Delete course"
                     >
                       <Trash2 size={12} />
