@@ -39,7 +39,15 @@ import {
   Layers,
   Zap,
   CheckCircle,
-  Settings
+  Settings,
+  Plus,
+  Percent,
+  CheckSquare,
+  ClipboardCheck,
+  FileSpreadsheet,
+  HelpCircle,
+  UserCheck,
+  Check
 } from "lucide-react";
 
 function Dashboard() {
@@ -55,47 +63,52 @@ function Dashboard() {
   const [showNotificationCenter, setShowNotificationCenter] = useState(false);
   const [activeNotificationTab, setActiveNotificationTab] = useState<"Critical" | "Warning" | "Info" | "Resolved">("Critical");
   
-  // AI Assistant chat history
-  const [assistantMessages, setAssistantMessages] = useState<Array<{ role: "user" | "assistant", text: string }>>([
-    { role: "assistant", text: "Welcome to SHIVIL AI Executive Copilot. Ask me anything about student risk metrics, attendance compliance, or budget audits." }
-  ]);
-  const [assistantInput, setAssistantInput] = useState("");
-  const [isAssistantTyping, setIsAssistantTyping] = useState(false);
-
-  // Sync timers
+  // Dynamic Sync and Uptime states
   const [lastSyncSec, setLastSyncSec] = useState(0);
   const [systemUptimeSec, setSystemUptimeSec] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
 
+  // Authenticated Role credentials
   const activeRole = localStorage.getItem("userRole") || "Admin";
   const activeName = localStorage.getItem("adminName") || "Shivam Jaiswal";
 
-  // Fetch live metrics from PostgreSQL via Express backend
-  const { data: metricsResponse, refetch: refetchMetrics } = useQuery({
-    queryKey: ["dashboardMetrics"],
-    queryFn: async () => {
-      const res = await apiClient.get("/dashboard/metrics");
-      return res.data;
-    }
+  // Dynamic Dashboard Sub-View State
+  const [activeSubView, setActiveSubView] = useState(() => {
+    if (activeRole === "Student") return "Student Portal";
+    if (activeRole === "Faculty") return "Faculty Portal";
+    return "VC Command Center"; // Admin default
   });
 
-  const metricsData = useMemo(() => {
-    return metricsResponse?.data || {
-      studentsCount: 1240,
-      facultyCount: 142,
-      departmentsCount: 4,
-      averageAttendance: 94.2,
-      upcomingExamsCount: 6,
-      pendingTasks: 3,
-      activeConversations: 12
-    };
-  }, [metricsResponse]);
+  // AI Assistant Chat state
+  const [assistantInput, setAssistantInput] = useState("");
+  const [isAssistantTyping, setIsAssistantTyping] = useState(false);
+  const [assistantMessages, setAssistantMessages] = useState<Array<{ role: "user" | "assistant", text: string }>>([]);
+
+  // Initialize role-specific chat greeting
+  useEffect(() => {
+    let greeting = "";
+    if (activeSubView === "Student Portal") {
+      greeting = "Hello Student! I am your AI Study Copilot. You can ask me to draft study planners, generate summary notes, or explain complex doubts.";
+    } else if (activeSubView === "Faculty Portal") {
+      greeting = "Greetings Faculty. I am your Grading & Syllabus Copilot. Ask me to generate question papers, list weak students, or draft class announcements.";
+    } else if (activeSubView === "HOD Advisor") {
+      greeting = "HOD Console active. I am your Accreditation & Load Advisor. Ask me to balance faculty workloads or list accreditation gaps.";
+    } else if (activeSubView === "Finance Hub") {
+      greeting = "Financial Systems Linked. Ask me to forecast next month's fee collections, check outstanding balances, or calculate yield trends.";
+    } else if (activeSubView === "Placement Suite") {
+      greeting = "Placement Tracker active. Ask me which students are eligible for Microsoft drives, check average salaries, or analyze resumes.";
+    } else {
+      greeting = "VC Executive Copilot active. Ask me about university health curves, dropout indexes, or budget updates.";
+    }
+    setAssistantMessages([{ role: "assistant", text: greeting }]);
+  }, [activeSubView]);
 
   // Loading skeleton simulation
   useEffect(() => {
-    const timer = setTimeout(() => setIsLoading(false), 800);
+    setIsLoading(true);
+    const timer = setTimeout(() => setIsLoading(false), 600);
     return () => clearTimeout(timer);
-  }, []);
+  }, [activeSubView]);
 
   // Timer intervals for sync & uptime stats
   useEffect(() => {
@@ -118,6 +131,27 @@ function Dashboard() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
+  // Fetch live metrics from PostgreSQL via Express backend
+  const { data: metricsResponse, refetch: refetchMetrics } = useQuery({
+    queryKey: ["dashboardMetrics"],
+    queryFn: async () => {
+      const res = await apiClient.get("/dashboard/metrics");
+      return res.data;
+    }
+  });
+
+  const metricsData = useMemo(() => {
+    return metricsResponse?.data || {
+      studentsCount: 1240,
+      facultyCount: 142,
+      departmentsCount: 4,
+      averageAttendance: 94.2,
+      upcomingExamsCount: 6,
+      pendingTasks: 3,
+      activeConversations: 12
+    };
+  }, [metricsResponse]);
+
   const triggerToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(""), 3500);
@@ -138,19 +172,56 @@ function Dashboard() {
     });
   }, []);
 
-  // Executive summaries and Command Center stats
+  // Executive summary metrics
   const healthScore = 98.6;
   const riskIndex = "2.4%";
   const budgetCollected = "$1.24M";
   const budgetGoal = "$1.50M";
   const placementRate = "94.2%";
 
-  // Executive Approval queue dossiers
-  const [approvalsList, setApprovalsList] = useState([
-    { id: 1, type: "Grading Curves", title: "Approve Midterm curves for CS-302 Algorithms", desc: "Dr. Sarah Jenkins submitted. Standard deviation curve matches parameters.", priority: "High", deadline: "Today, 17:00", impact: "Affects 60 Students" },
-    { id: 2, type: "Research Funding", title: "Approve $15,000 deep learning lab grant", desc: "Dean Office compiled. Sourced from external science grant allocation.", priority: "Medium", deadline: "July 18, 12:00", impact: "Affects CSE Research" },
-    { id: 3, type: "Tuition Invoices", title: "Lock Q3 mess allocation budget invoice", desc: "Finance cell compiled. Covers catering supply and vendor settlements.", priority: "Low", deadline: "July 20, 18:00", impact: "Affects Hostel Accounts" }
-  ]);
+  // Mock data definitions for HOD, Finance, and Placement sections
+  const HODData = {
+    facultyIndex: "92% Rating",
+    placementYield: "94.2%",
+    reserves: "$185K",
+    accreditationScore: "98.6%",
+    accreditationTasks: [
+      { name: "Syllabus Compliance Audits", status: "Done" },
+      { name: "Faculty Credentials Verification", status: "Pending" },
+      { name: "Laboratory Safety Clearances", status: "Done" }
+    ],
+    facultyLoads: [
+      { name: "Dr. Sarah Jenkins", load: "20 hrs", status: "Overloaded" },
+      { name: "Prof. Marcus Vance", load: "12 hrs", status: "Underloaded" },
+      { name: "Dr. Anya Sen", load: "16 hrs", status: "Optimal" }
+    ]
+  };
+
+  const FinanceData = {
+    revenue: "$1.24M",
+    outstanding: "$260K",
+    payroll: "$480K / mo",
+    yieldRate: "82% yield",
+    unpaidList: [
+      { student: "Neha Reddy", dues: "$1,499", status: "Overdue" },
+      { student: "Rohan Das", dues: "$750", status: "Overdue" }
+    ]
+  };
+
+  const PlacementData = {
+    averagePackage: "$12.4 LPA",
+    highestPackage: "$45 LPA",
+    eligibleCount: 480,
+    placedRatio: "84.5%",
+    upcomingDrives: [
+      { company: "Microsoft India", date: "July 22, 10:00", type: "Full Time" },
+      { company: "Google Core AI", date: "July 26, 09:30", type: "Internship" }
+    ],
+    readinessList: [
+      { name: "Neha Reddy", cgpa: "8.85", codeScore: "92%", status: "Eligible" },
+      { name: "Anya Sen", cgpa: "9.20", codeScore: "96%", status: "Eligible" }
+    ]
+  };
 
   // Executive Notifications Center
   const notificationsList = [
@@ -163,29 +234,6 @@ function Dashboard() {
     { id: 7, cat: "Resolved", title: "Database cluster resync", desc: "Internal Prisma engines index cache optimization completed.", time: "Yesterday" }
   ];
 
-  // AI Insight Recommendation Panel
-  const aiInsight = {
-    title: "Balance CSE faculty teaching workloads",
-    recommendation: "Reallocate CS-302 Algorithms Lab from Dr. Sarah Jenkins to Prof. Marcus Vance.",
-    reasoning: "Dr. Jenkins is overloaded by 4 hours beyond guidelines, impacting response cycles. Prof. Vance has a 4-hour deficit in workload allocation.",
-    impact: "Reduces grading latency by projected 1.5 days. Retains syllabus progression targets.",
-    confidence: 96,
-    actionLabel: "Reallocate Workload"
-  };
-
-  const liveFeed = [
-    { action: "Syllabus lock", detail: "IT-302 Cloud completed baseline audits", time: "5 mins ago", severity: "Info" },
-    { action: "Student Warning", detail: "Automated letter dispatched to Neha Reddy", time: "18 mins ago", severity: "Warning" },
-    { action: "Grades upload", detail: "Midterm grading curves approved for ECE-202", time: "1 hour ago", severity: "Resolved" },
-    { action: "Fees paid", detail: "Tuition invoice settled by Roll APEX-2026-044", time: "3 hours ago", severity: "Info" },
-    { action: "Security Alert", detail: "Multiple failed SSO attempts from outside IP block", time: "4 hours ago", severity: "Critical" }
-  ];
-
-  const handleApproveDossier = (id: number, title: string) => {
-    setApprovalsList(prev => prev.filter(item => item.id !== id));
-    triggerToast(`Dossier Approved: ${title}`);
-  };
-
   // Chatbot response simulation
   const handleSendAssistantMessage = () => {
     if (!assistantInput.trim()) return;
@@ -197,18 +245,49 @@ function Dashboard() {
     setTimeout(() => {
       setIsAssistantTyping(false);
       let replyText = "Analyzing parameters... ";
-      if (userMsg.toLowerCase().includes("dropout") || userMsg.toLowerCase().includes("risk")) {
-        replyText += "I have scanned CSE rosters. 1 student (Neha Reddy, CS-302) is flagged at 88% dropout risk index due to a 58% attendance record. I recommend triggering the automated warning dispatch.";
-      } else if (userMsg.toLowerCase().includes("attendance") || userMsg.toLowerCase().includes("cse")) {
-        replyText += "CS Department attendance index is 94.2%. Average check-ins are stable. 2 warnings were dispatched this week to ECE department students.";
+      
+      if (activeSubView === "Student Portal") {
+        if (userMsg.toLowerCase().includes("study") || userMsg.toLowerCase().includes("plan")) {
+          replyText += "Based on your syllabus, you should allocate 2 hours to CS-302 (Algorithms, Tree Traversals) and 1 hour to AI-310 (Neural Network backpropagation) today.";
+        } else if (userMsg.toLowerCase().includes("doubt") || userMsg.toLowerCase().includes("complexity")) {
+          replyText += "Big-O complexity represents the upper bound of run time. For example, binary search operates in O(log n) logarithmic complexity by splitting arrays in halves.";
+        } else {
+          replyText += "Your doubt has been mapped to current course modules. Generating summary notes file...";
+        }
+      } else if (activeSubView === "Faculty Portal") {
+        if (userMsg.toLowerCase().includes("weak") || userMsg.toLowerCase().includes("student")) {
+          replyText += "I detected 1 student (Neha Reddy) with attendance at 58% in CS-302. I suggest emailing a warning notice.";
+        } else if (userMsg.toLowerCase().includes("question") || userMsg.toLowerCase().includes("paper")) {
+          replyText += "Generated 5 sample questions for CS-302 Algorithms Midterm: 1. Explain Dijkstra's shortest path. 2. Verify Prim's complexity bounds. 3. Contrast BFS and DFS trees.";
+        } else {
+          replyText += "Recommendation drafted successfully for class roster.";
+        }
+      } else if (activeSubView === "HOD Advisor") {
+        if (userMsg.toLowerCase().includes("load") || userMsg.toLowerCase().includes("balance")) {
+          replyText += "Dr. Sarah Jenkins is carrying 20 hours (overloaded). Reallocating the Algorithms Lab (4 hours) to Prof. Marcus Vance balances loads to optimal 16-hour limits.";
+        } else {
+          replyText += "Accreditation review active. Syllabus indices are fully updated.";
+        }
+      } else if (activeSubView === "Finance Hub") {
+        if (userMsg.toLowerCase().includes("predict") || userMsg.toLowerCase().includes("collection")) {
+          replyText += "Predicted Q3 collection yield is 94.5% ($1.42M) by month end, assuming outstanding mess dues ($260K) are processed.";
+        } else {
+          replyText += "Revenue prediction metrics mapped to finance charts.";
+        }
+      } else if (activeSubView === "Placement Suite") {
+        if (userMsg.toLowerCase().includes("microsoft") || userMsg.toLowerCase().includes("eligible")) {
+          replyText += "2 students meet Microsoft eligibility parameters (Neha Reddy, Anya Sen). Both carry CGPA > 8.5 and coding scores > 90%.";
+        } else {
+          replyText += "Mock interview session guidelines sent to roster.";
+        }
       } else {
-        replyText += "AI query compiled successfully. Your request matches context: Viewing University Command Center indices. Let me know if you need to run specific database audits.";
+        replyText += "Inference compiled. Commands executed.";
       }
+      
       setAssistantMessages(prev => [...prev, { role: "assistant", text: replyText }]);
     }, 1200);
   };
 
-  // Command Menu execute action helper
   const handleCommandExecute = (actionName: string) => {
     setShowCommandMenu(false);
     setCommandSearch("");
@@ -216,12 +295,8 @@ function Dashboard() {
       setShowAssistant(true);
       setAssistantInput("Analyze dropout risks");
       setTimeout(() => handleSendAssistantMessage(), 100);
-    } else if (actionName === "audit") {
-      triggerToast("Triggered attendance verification scan.");
-    } else if (actionName === "notice") {
-      triggerToast("Dispatched warning notifications to parent roster.");
     } else {
-      triggerToast("System theme resynced.");
+      triggerToast(`Command executed: ${actionName}`);
     }
   };
 
@@ -230,8 +305,6 @@ function Dashboard() {
       <Sidebar />
 
       <main className="flex-1 p-6 md:p-8 overflow-y-auto min-w-0 z-10 relative">
-        
-        {/* Glow meshes */}
         <div className="absolute top-[-5%] left-[20%] w-[350px] h-[350px] rounded-full bg-blue-500/5 blur-[100px] pointer-events-none" />
         <div className="absolute bottom-[10%] right-[5%] w-[400px] h-[400px] rounded-full bg-purple-500/5 blur-[120px] pointer-events-none" />
 
@@ -252,7 +325,7 @@ function Dashboard() {
             )}
           </AnimatePresence>
 
-          {/* SECTION: Dynamic Executive Header */}
+          {/* DYNAMIC EXECUTIVE HEADER WITH ROLE SWITCHER */}
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-900 pb-6">
             <div className="space-y-1">
               <div className="flex items-center gap-3 font-mono text-[9px] uppercase tracking-wider text-slate-500">
@@ -265,21 +338,44 @@ function Dashboard() {
                 <span>•</span>
                 <button 
                   onClick={handleSyncReset}
-                  className="hover:text-blue-400 transition cursor-pointer flex items-center gap-1 text-[9px] font-bold"
+                  className="hover:text-blue-400 transition cursor-pointer flex items-center gap-1 font-bold text-[9px]"
                 >
                   <span>Synced {lastSyncSec}s ago</span>
                 </button>
               </div>
 
-              <h1 className="text-2xl font-extrabold tracking-tight text-white mt-1.5 flex items-center gap-2.5">
-                <Sliders className="text-blue-500" size={24} />
-                <span>AI Executive Command Center</span>
-              </h1>
-              
-              <div className="p-3.5 mt-3 rounded-2xl border border-white/5 bg-slate-950/60 text-xs text-slate-400 leading-relaxed max-w-4xl border-l-2 border-l-blue-500 select-text">
-                <span className="font-extrabold text-white uppercase tracking-wider text-[10px] mr-1.5 block md:inline">VC Daily Recap:</span>
-                Campus health indexes remain stable at 98.6%. Algorithms CS-302 midterm curves require dossier sign-offs. AI models have logged 1 high-risk student profile.
+              <div className="flex items-center gap-4 flex-wrap">
+                <h1 className="text-2xl font-extrabold tracking-tight text-white mt-1.5 flex items-center gap-2.5">
+                  <Sliders className="text-blue-500" size={24} />
+                  <span>{activeSubView}</span>
+                </h1>
+
+                {/* Switcher Dropdown (Only visible for Admins) */}
+                {activeRole === "Admin" && (
+                  <div className="flex bg-slate-900 p-0.5 rounded-lg border border-slate-850 mt-1">
+                    {[
+                      { id: "VC Command Center", label: "VC Center" },
+                      { id: "HOD Advisor", label: "HOD" },
+                      { id: "Finance Hub", label: "Finance" },
+                      { id: "Placement Suite", label: "Placement" }
+                    ].map(tab => (
+                      <button
+                        key={tab.id}
+                        onClick={() => setActiveSubView(tab.id)}
+                        className={`px-3 py-1 rounded-md text-[9px] font-extrabold uppercase tracking-wider transition cursor-pointer ${
+                          activeSubView === tab.id ? "bg-slate-950 text-blue-400 border border-white/5" : "text-slate-500 hover:text-slate-350"
+                        }`}
+                      >
+                        {tab.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
+
+              <p className="text-slate-400 text-xs mt-1">
+                Authorized identity: {activeName} ({activeRole}).
+              </p>
             </div>
             
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 shrink-0 self-start md:self-auto">
@@ -302,7 +398,7 @@ function Dashboard() {
 
               <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-blue-500/20 bg-blue-500/5 text-[9px] font-extrabold text-blue-400 uppercase tracking-widest select-none font-mono">
                 <Sparkles size={11} className="animate-spin duration-1500" />
-                <span>AI Operating Mode Active</span>
+                <span>Role Copilot Active</span>
               </div>
             </div>
           </div>
@@ -324,451 +420,953 @@ function Dashboard() {
               transition={{ duration: 0.5 }}
               className="space-y-8"
             >
-              {/* SECTION: KPI Metric Highlights with Sparklines & predictions */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                
-                {/* Health Score */}
-                <div className="relative rounded-2xl border border-white/5 bg-slate-950/40 p-5 backdrop-blur-xl group hover:border-slate-800 transition shadow flex flex-col justify-between h-36">
-                  <div className="flex justify-between items-center">
-                    <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Health Index</span>
-                    <Heart size={14} className="text-red-400 animate-pulse" />
-                  </div>
-                  <div className="my-1">
-                    <h3 className="text-2xl font-extrabold text-white font-mono">{healthScore}%</h3>
-                    <div className="h-5 w-full mt-2">
-                      <svg className="w-full h-full stroke-emerald-500/40 fill-none" viewBox="0 0 100 20">
-                        <path d="M0,12 Q15,18 30,12 T60,5 T90,9 T100,2" strokeWidth="1.8" />
-                      </svg>
+              {/* ────────────────────────────────────────────────────────
+                  SUB-VIEW 1: STUDENT PORTAL 
+                  ──────────────────────────────────────────────────────── */}
+              {activeSubView === "Student Portal" && (
+                <div className="space-y-8">
+                  {/* KPIs */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                    <div className="p-5 rounded-2xl border border-white/5 bg-slate-950/40 h-32 flex flex-col justify-between">
+                      <div className="flex justify-between items-center text-[10px] text-slate-500 font-bold uppercase tracking-wider">
+                        <span>Attendance Progress</span>
+                        <Activity size={14} className="text-emerald-400" />
+                      </div>
+                      <h3 className="text-2xl font-extrabold text-white font-mono">94.2%</h3>
+                      <p className="text-[9px] text-emerald-400 font-bold">Prediction: Safe Baseline</p>
+                    </div>
+
+                    <div className="p-5 rounded-2xl border border-white/5 bg-slate-950/40 h-32 flex flex-col justify-between">
+                      <div className="flex justify-between items-center text-[10px] text-slate-500 font-bold uppercase tracking-wider">
+                        <span>CGPA Forecast</span>
+                        <Award size={14} className="text-blue-400" />
+                      </div>
+                      <h3 className="text-2xl font-extrabold text-white font-mono">8.85 / 10</h3>
+                      <p className="text-[9px] text-blue-400 font-bold">Predicted Honors Track</p>
+                    </div>
+
+                    <div className="p-5 rounded-2xl border border-white/5 bg-slate-950/40 h-32 flex flex-col justify-between">
+                      <div className="flex justify-between items-center text-[10px] text-slate-500 font-bold uppercase tracking-wider">
+                        <span>Pending Tasks</span>
+                        <FileText size={14} className="text-pink-400" />
+                      </div>
+                      <h3 className="text-2xl font-extrabold text-white font-mono">2 Assignments</h3>
+                      <p className="text-[9px] text-slate-500 font-mono">Deadline: July 20</p>
+                    </div>
+
+                    <div className="p-5 rounded-2xl border border-white/5 bg-slate-950/40 h-32 flex flex-col justify-between">
+                      <div className="flex justify-between items-center text-[10px] text-slate-500 font-bold uppercase tracking-wider">
+                        <span>Scholarship Credit</span>
+                        <DollarSign size={14} className="text-yellow-400" />
+                      </div>
+                      <h3 className="text-2xl font-extrabold text-white font-mono">$4,500</h3>
+                      <p className="text-[9px] text-emerald-400 font-bold">Fully Disbursed</p>
                     </div>
                   </div>
-                  <div className="flex items-center justify-between text-[9px]">
-                    <span className="text-emerald-400 font-bold flex items-center gap-0.5"><TrendingUp size={9} />+1.2%</span>
-                    <span className="text-slate-500 font-semibold uppercase font-mono">Prediction: Stable</span>
-                  </div>
-                </div>
 
-                {/* AI Risk Index */}
-                <div className="relative rounded-2xl border border-purple-500/15 bg-slate-950/40 p-5 backdrop-blur-xl group hover:border-purple-500/30 transition shadow flex flex-col justify-between h-36">
-                  <div className="flex justify-between items-center">
-                    <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">AI Risk Index</span>
-                    <Sparkles size={14} className="text-purple-400" />
-                  </div>
-                  <div className="my-1">
-                    <h3 className="text-2xl font-extrabold text-purple-400 font-mono">{riskIndex}</h3>
-                    <div className="h-5 w-full mt-2">
-                      <svg className="w-full h-full stroke-purple-500/40 fill-none" viewBox="0 0 100 20">
-                        <path d="M0,5 Q20,15 40,8 T70,12 T100,4" strokeWidth="1.8" />
-                      </svg>
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between text-[9px]">
-                    <span className="text-purple-400 font-bold">1 Alert Flagged</span>
-                    <span className="px-1.5 py-0.5 rounded bg-red-500/10 border border-red-500/20 text-[8px] font-bold text-red-400 uppercase">Attention</span>
-                  </div>
-                </div>
+                  {/* Main split */}
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                    {/* Left: Schedule & Midterm Chart */}
+                    <div className="lg:col-span-8 space-y-8">
+                      <div className="p-6 rounded-3xl border border-white/5 bg-slate-950/40 space-y-4 shadow-lg">
+                        <h3 className="text-xs font-bold text-white uppercase tracking-widest flex items-center gap-2">
+                          <Clock size={14} className="text-blue-500" />
+                          <span>Today's Academic Calendar</span>
+                        </h3>
+                        <div className="space-y-3">
+                          <div className="p-4 bg-slate-950 border border-slate-900 rounded-2xl flex justify-between items-center">
+                            <div>
+                              <p className="font-bold text-white text-xs">Algorithms Lecture (CS-302)</p>
+                              <p className="text-[10px] text-slate-500 mt-0.5">Dr. Sarah Jenkins • Room 102</p>
+                            </div>
+                            <span className="px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 text-[10px] font-mono">09:00 - 10:30</span>
+                          </div>
+                          <div className="p-4 bg-slate-950 border border-slate-900 rounded-2xl flex justify-between items-center">
+                            <div>
+                              <p className="font-bold text-white text-xs">Neural Networks Lab (AI-310)</p>
+                              <p className="text-[10px] text-slate-500 mt-0.5">Prof. Marcus Vance • Lab Room B</p>
+                            </div>
+                            <span className="px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 text-[10px] font-mono">11:00 - 12:30</span>
+                          </div>
+                        </div>
+                      </div>
 
-                {/* Budget Insights */}
-                <div className="relative rounded-2xl border border-white/5 bg-slate-950/40 p-5 backdrop-blur-xl group hover:border-slate-800 transition shadow flex flex-col justify-between h-36">
-                  <div className="flex justify-between items-center">
-                    <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Fees Collection</span>
-                    <DollarSign size={14} className="text-emerald-400" />
-                  </div>
-                  <div className="my-1">
-                    <h3 className="text-2xl font-extrabold text-white font-mono">{budgetCollected}</h3>
-                    <div className="h-5 w-full mt-2">
-                      <svg className="w-full h-full stroke-emerald-500/40 fill-none" viewBox="0 0 100 20">
-                        <path d="M0,18 Q20,12 40,15 T75,6 T100,2" strokeWidth="1.8" />
-                      </svg>
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between text-[9px]">
-                    <span className="text-slate-500">Goal: {budgetGoal}</span>
-                    <span className="text-emerald-400 font-bold">82% yield</span>
-                  </div>
-                </div>
-
-                {/* Placement Forecast */}
-                <div className="relative rounded-2xl border border-white/5 bg-slate-950/40 p-5 backdrop-blur-xl group hover:border-slate-800 transition shadow flex flex-col justify-between h-36">
-                  <div className="flex justify-between items-center">
-                    <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Placement Forecast</span>
-                    <Briefcase size={14} className="text-blue-400" />
-                  </div>
-                  <div className="my-1">
-                    <h3 className="text-2xl font-extrabold text-blue-400 font-mono">{placementRate}</h3>
-                    <div className="h-5 w-full mt-2">
-                      <svg className="w-full h-full stroke-blue-500/40 fill-none" viewBox="0 0 100 20">
-                        <path d="M0,15 Q30,10 60,14 T100,5" strokeWidth="1.8" />
-                      </svg>
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between text-[9px]">
-                    <span className="text-emerald-400 font-bold flex items-center gap-0.5"><TrendingUp size={9} />+4.1%</span>
-                    <span className="text-slate-500">Projected yield</span>
-                  </div>
-                </div>
-
-              </div>
-
-              {/* Active Registries Counts Row */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 border-t border-b border-slate-900 py-5 select-none bg-slate-950/20 px-4 rounded-2xl">
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400 shrink-0">
-                    <Users size={16} />
-                  </div>
-                  <div>
-                    <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider leading-none">Total Students</p>
-                    <p className="text-sm font-extrabold text-white mt-1.5 leading-none font-mono">{metricsData.studentsCount}</p>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400 shrink-0">
-                    <GraduationCap size={16} />
-                  </div>
-                  <div>
-                    <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider leading-none">Total Faculty</p>
-                    <p className="text-sm font-extrabold text-white mt-1.5 leading-none font-mono">{metricsData.facultyCount}</p>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-pink-500/10 border border-pink-500/20 flex items-center justify-center text-pink-400 shrink-0">
-                    <Building size={16} />
-                  </div>
-                  <div>
-                    <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider leading-none">Active Departments</p>
-                    <p className="text-sm font-extrabold text-white mt-1.5 leading-none font-mono">{metricsData.departmentsCount}</p>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0">
-                    <Activity size={16} />
-                  </div>
-                  <div>
-                    <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider leading-none">Avg Attendance</p>
-                    <p className="text-sm font-extrabold text-white mt-1.5 leading-none font-mono">{metricsData.averageAttendance}%</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Main Command Split Panels */}
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-                
-                {/* Left Columns (8 cols): Admissions charts, VC Approvals */}
-                <div className="lg:col-span-8 space-y-8">
-                  
-                  {/* Tabbed Executive Charts with Range Selection */}
-                  <div className="p-6 rounded-3xl border border-white/5 bg-slate-950/40 backdrop-blur-xl space-y-6 shadow-lg relative">
-                    <div className="absolute top-0 inset-x-0 h-[1px] bg-gradient-to-r from-transparent via-blue-500/15 to-transparent" />
-                    
-                    <div className="flex items-center justify-between border-b border-slate-900 pb-4 flex-wrap gap-4 select-none">
-                      <div className="space-y-1">
+                      {/* Performance Plot chart */}
+                      <div className="p-6 rounded-3xl border border-white/5 bg-slate-950/40 space-y-4 shadow-lg">
                         <h3 className="text-xs font-bold text-white uppercase tracking-widest flex items-center gap-2">
                           <BarChart3 size={14} className="text-blue-500" />
-                          <span>Real-time Command Analytics</span>
+                          <span>Midterm Score Distributions</span>
                         </h3>
-                        <p className="text-[9px] text-slate-500 font-semibold">Interactive index mapping</p>
+                        <div className="h-40 w-full flex items-end gap-3 pt-4">
+                          <div className="flex-1 bg-slate-900 h-24 rounded-lg relative"><div className="absolute bottom-0 inset-x-0 bg-blue-500 h-16 rounded-lg text-[9px] font-bold text-center pt-2">82%</div></div>
+                          <div className="flex-1 bg-slate-900 h-32 rounded-lg relative"><div className="absolute bottom-0 inset-x-0 bg-blue-500 h-28 rounded-lg text-[9px] font-bold text-center pt-2">92%</div></div>
+                          <div className="flex-1 bg-slate-900 h-20 rounded-lg relative"><div className="absolute bottom-0 inset-x-0 bg-blue-500 h-12 rounded-lg text-[9px] font-bold text-center pt-2">74%</div></div>
+                        </div>
+                        <div className="flex justify-between text-[9px] text-slate-500 font-bold font-mono">
+                          <span className="flex-1 text-center">Algorithms</span>
+                          <span className="flex-1 text-center">Neural Nets</span>
+                          <span className="flex-1 text-center">Cloud Computing</span>
+                        </div>
                       </div>
+                    </div>
 
-                      <div className="flex items-center gap-3">
-                        {/* Time Range Selector */}
-                        <div className="flex bg-slate-900 p-0.5 rounded-lg border border-slate-850">
-                          {["Week", "Month", "Year"].map(t => (
-                            <button
-                              key={t}
-                              onClick={() => setChartTimeRange(t as any)}
-                              className={`px-2.5 py-1 rounded-md text-[9px] font-bold uppercase tracking-wider transition cursor-pointer ${
-                                chartTimeRange === t ? "bg-slate-950 text-white border border-white/5" : "text-slate-500 hover:text-slate-300"
-                              }`}
-                            >
-                              {t}
-                            </button>
+                    {/* Right: Study Assistant */}
+                    <div className="lg:col-span-4 space-y-6">
+                      <div className="p-5 rounded-3xl border border-purple-500/20 bg-gradient-to-br from-slate-950 to-purple-950/10 space-y-4 shadow-lg">
+                        <h3 className="text-xs font-bold text-white flex items-center gap-2 uppercase tracking-wider">
+                          <Sparkles size={14} className="text-purple-400" />
+                          <span>AI Study Copilot</span>
+                        </h3>
+                        <div className="space-y-2">
+                          <button 
+                            onClick={() => { setAssistantInput("Help me study Big-O complexity"); }}
+                            className="w-full text-left p-2.5 rounded-xl bg-slate-900 border border-slate-850 text-[10px] font-bold text-purple-400 hover:text-white transition"
+                          >
+                            💡 Explain Big-O complexity
+                          </button>
+                          <button 
+                            onClick={() => { setAssistantInput("Draft a study plan for midterms"); }}
+                            className="w-full text-left p-2.5 rounded-xl bg-slate-900 border border-slate-850 text-[10px] font-bold text-purple-400 hover:text-white transition"
+                          >
+                            📅 Draft midterm study plan
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Quick actions bottom */}
+                  <div className="p-5 rounded-2xl border border-white/5 bg-slate-950/40 space-y-4">
+                    <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Portal Quick Actions</p>
+                    <div className="flex flex-wrap gap-4">
+                      <button onClick={() => triggerToast("Admit Card PDF compiled successfully.")} className="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-850 border border-slate-800 text-xs font-bold text-slate-300 hover:text-white transition">Download Admit Card</button>
+                      <button onClick={() => triggerToast("Redirecting to secured payment gateway...")} className="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-850 border border-slate-800 text-xs font-bold text-slate-300 hover:text-white transition">Pay Term Fees</button>
+                      <button onClick={() => triggerToast("Leave request dossier logged for review.")} className="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-850 border border-slate-800 text-xs font-bold text-slate-300 hover:text-white transition">Request Leave</button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* ────────────────────────────────────────────────────────
+                  SUB-VIEW 2: FACULTY PORTAL 
+                  ──────────────────────────────────────────────────────── */}
+              {activeSubView === "Faculty Portal" && (
+                <div className="space-y-8">
+                  {/* KPIs */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                    <div className="p-5 rounded-2xl border border-white/5 bg-slate-950/40 h-32 flex flex-col justify-between">
+                      <div className="flex justify-between items-center text-[10px] text-slate-500 font-bold uppercase tracking-wider">
+                        <span>Teaching Workload</span>
+                        <Clock size={14} className="text-blue-400" />
+                      </div>
+                      <h3 className="text-2xl font-extrabold text-white font-mono">14 hrs / wk</h3>
+                      <p className="text-[9px] text-emerald-400 font-bold">Limit: 16 hrs (Optimal)</p>
+                    </div>
+
+                    <div className="p-5 rounded-2xl border border-white/5 bg-slate-950/40 h-32 flex flex-col justify-between">
+                      <div className="flex justify-between items-center text-[10px] text-slate-500 font-bold uppercase tracking-wider">
+                        <span>Avg Attendance</span>
+                        <Activity size={14} className="text-emerald-400" />
+                      </div>
+                      <h3 className="text-2xl font-extrabold text-white font-mono">92.4%</h3>
+                      <p className="text-[9px] text-slate-500 font-mono">CS-302 Algorithms Section B</p>
+                    </div>
+
+                    <div className="p-5 rounded-2xl border border-white/5 bg-slate-950/40 h-32 flex flex-col justify-between">
+                      <div className="flex justify-between items-center text-[10px] text-slate-500 font-bold uppercase tracking-wider">
+                        <span>Syllabus Progress</span>
+                        <Layers size={14} className="text-purple-400" />
+                      </div>
+                      <h3 className="text-2xl font-extrabold text-white font-mono">78% Done</h3>
+                      <p className="text-[9px] text-emerald-400 font-bold">Ahead of baseline guidelines</p>
+                    </div>
+
+                    <div className="p-5 rounded-2xl border border-white/5 bg-slate-950/40 h-32 flex flex-col justify-between">
+                      <div className="flex justify-between items-center text-[10px] text-slate-500 font-bold uppercase tracking-wider">
+                        <span>Active Grants</span>
+                        <Award size={14} className="text-pink-400" />
+                      </div>
+                      <h3 className="text-2xl font-extrabold text-white font-mono">2 Projects</h3>
+                      <p className="text-[9px] text-purple-400 font-bold">Funding: $45K reserves</p>
+                    </div>
+                  </div>
+
+                  {/* Main Split */}
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                    {/* Left: Classes and Class Heatmap */}
+                    <div className="lg:col-span-8 space-y-8">
+                      <div className="p-6 rounded-3xl border border-white/5 bg-slate-950/40 space-y-4 shadow-lg">
+                        <h3 className="text-xs font-bold text-white uppercase tracking-widest flex items-center gap-2">
+                          <Activity size={14} className="text-emerald-400" />
+                          <span>Student Engagement Heatmap</span>
+                        </h3>
+                        <div className="grid grid-cols-5 gap-3 p-4 bg-slate-950 border border-slate-900 rounded-2xl max-w-sm mx-auto">
+                          {[...Array(25)].map((_, i) => (
+                            <div 
+                              key={i} 
+                              className={`w-6 h-6 rounded-md ${
+                                i % 5 === 0 ? "bg-emerald-500" :
+                                i % 3 === 0 ? "bg-emerald-600/60" :
+                                i % 2 === 0 ? "bg-emerald-700/30" : "bg-slate-900"
+                              } hover:scale-110 transition-transform`} 
+                            />
                           ))}
                         </div>
-
-                        {/* Chart Tab Selector */}
-                        <div className="flex bg-slate-900 p-0.5 rounded-lg border border-slate-850">
-                          <button 
-                            onClick={() => setActiveChartTab("admissions")}
-                            className={`px-2.5 py-1 rounded-md text-[9px] font-bold uppercase tracking-wider transition cursor-pointer ${
-                              activeChartTab === "admissions" ? "bg-slate-950 text-blue-400 border border-white/5" : "text-slate-500 hover:text-slate-350"
-                            }`}
-                          >
-                            Funnel
-                          </button>
-                          <button 
-                            onClick={() => setActiveChartTab("departments")}
-                            className={`px-2.5 py-1 rounded-md text-[9px] font-bold uppercase tracking-wider transition cursor-pointer ${
-                              activeChartTab === "departments" ? "bg-slate-950 text-purple-400 border border-white/5" : "text-slate-500 hover:text-slate-350"
-                            }`}
-                          >
-                            Departments
-                          </button>
-                          <button 
-                            onClick={() => setActiveChartTab("occupancy")}
-                            className={`px-2.5 py-1 rounded-md text-[9px] font-bold uppercase tracking-wider transition cursor-pointer ${
-                              activeChartTab === "occupancy" ? "bg-slate-950 text-emerald-400 border border-white/5" : "text-slate-500 hover:text-slate-350"
-                            }`}
-                          >
-                            Hostel
-                          </button>
-                        </div>
                       </div>
-                    </div>
 
-                    <div className="h-56 w-full flex flex-col justify-center">
-                      <AnimatePresence mode="wait">
-                        {activeChartTab === "admissions" && (
-                          <motion.div 
-                            key={`admissions-${chartTimeRange}`} 
-                            initial={{ opacity: 0, y: 5 }} 
-                            animate={{ opacity: 1, y: 0 }} 
-                            exit={{ opacity: 0, y: -5 }} 
-                            className="w-full h-full flex flex-col justify-between pt-2 space-y-4"
-                          >
-                            <div className="space-y-1.5">
-                              <div className="flex justify-between text-[11px] font-semibold text-slate-400">
-                                <span>Applications Submitted</span>
-                                <span className="text-white font-mono">{chartTimeRange === "Week" ? "420" : chartTimeRange === "Month" ? "4.8K" : "28K"} candidates</span>
-                              </div>
-                              <div className="w-full bg-slate-900 h-2 rounded-full overflow-hidden">
-                                <motion.div 
-                                  initial={{ width: 0 }}
-                                  animate={{ width: "100%" }}
-                                  transition={{ duration: 0.6 }}
-                                  className="h-full bg-blue-500" 
-                                />
-                              </div>
-                            </div>
-
-                            <div className="space-y-1.5">
-                              <div className="flex justify-between text-[11px] font-semibold text-slate-400">
-                                <span>Offers Dispatched</span>
-                                <span className="text-white font-mono">{chartTimeRange === "Week" ? "105" : chartTimeRange === "Month" ? "1.2K" : "7.2K"} (25% rate)</span>
-                              </div>
-                              <div className="w-full bg-slate-900 h-2 rounded-full overflow-hidden">
-                                <motion.div 
-                                  initial={{ width: 0 }}
-                                  animate={{ width: "25%" }}
-                                  transition={{ duration: 0.6, delay: 0.1 }}
-                                  className="h-full bg-purple-500" 
-                                />
-                              </div>
-                            </div>
-
-                            <div className="space-y-1.5">
-                              <div className="flex justify-between text-[11px] font-semibold text-slate-400">
-                                <span>Registered & Enrolled</span>
-                                <span className="text-white font-mono">{chartTimeRange === "Week" ? "71" : chartTimeRange === "Month" ? "820" : "4.9K"} (Yield rate)</span>
-                              </div>
-                              <div className="w-full bg-slate-900 h-2 rounded-full overflow-hidden">
-                                <motion.div 
-                                  initial={{ width: 0 }}
-                                  animate={{ width: "17%" }}
-                                  transition={{ duration: 0.6, delay: 0.2 }}
-                                  className="h-full bg-emerald-500" 
-                                />
-                              </div>
-                            </div>
-                          </motion.div>
-                        )}
-
-                        {activeChartTab === "departments" && (
-                          <motion.div 
-                            key={`departments-${chartTimeRange}`} 
-                            initial={{ opacity: 0, scale: 0.98 }} 
-                            animate={{ opacity: 1, scale: 1 }} 
-                            exit={{ opacity: 0 }} 
-                            className="w-full h-full flex items-center justify-around gap-4 pt-2"
-                          >
-                            <div className="text-center space-y-2">
-                              <div className="w-20 h-20 rounded-full border-4 border-emerald-500/20 border-t-emerald-500 flex flex-col items-center justify-center font-bold text-xs text-white font-mono shadow-md animate-spin-slow">
-                                <span>{chartTimeRange === "Week" ? "92%" : "94%"}</span>
-                              </div>
-                              <p className="text-[10px] text-slate-500 font-extrabold uppercase tracking-wider">CSE Utilization</p>
-                            </div>
-                            <div className="text-center space-y-2">
-                              <div className="w-20 h-20 rounded-full border-4 border-blue-500/20 border-t-blue-500 flex flex-col items-center justify-center font-bold text-xs text-white font-mono shadow-md animate-spin-slow">
-                                <span>{chartTimeRange === "Week" ? "85%" : "88%"}</span>
-                              </div>
-                              <p className="text-[10px] text-slate-500 font-extrabold uppercase tracking-wider">ECE Utilization</p>
-                            </div>
-                            <div className="text-center space-y-2">
-                              <div className="w-20 h-20 rounded-full border-4 border-purple-500/20 border-t-purple-500 flex flex-col items-center justify-center font-bold text-xs text-white font-mono shadow-md animate-spin-slow">
-                                <span>{chartTimeRange === "Week" ? "80%" : "82%"}</span>
-                              </div>
-                              <p className="text-[10px] text-slate-500 font-extrabold uppercase tracking-wider">ME Utilization</p>
-                            </div>
-                          </motion.div>
-                        )}
-
-                        {activeChartTab === "occupancy" && (
-                          <motion.div 
-                            key={`occupancy-${chartTimeRange}`} 
-                            initial={{ opacity: 0 }} 
-                            animate={{ opacity: 1 }} 
-                            exit={{ opacity: 0 }} 
-                            className="w-full h-full flex flex-col justify-center space-y-4"
-                          >
-                            <div className="flex items-center justify-between p-4 bg-slate-950 border border-slate-900 rounded-2xl hover:border-slate-800 transition">
-                              <div className="space-y-1">
-                                <p className="text-xs font-extrabold text-white leading-none">Hostel Occupancy Index</p>
-                                <p className="text-[9px] text-slate-500 leading-none">Block A & B fully loaded</p>
-                              </div>
-                              <span className="text-xs font-bold text-emerald-400 font-mono">94.2% Occupied</span>
-                            </div>
-                            
-                            <div className="flex items-center justify-between p-4 bg-slate-950 border border-slate-900 rounded-2xl hover:border-slate-800 transition">
-                              <div className="space-y-1">
-                                <p className="text-xs font-extrabold text-white leading-none">Mess Feedback Ratings</p>
-                                <p className="text-[9px] text-slate-500 leading-none">Weekly average score indices</p>
-                              </div>
-                              <span className="text-xs font-bold text-blue-400 font-mono">4.4 / 5.0 Rating</span>
-                            </div>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                    </div>
-                  </div>
-
-                  {/* Executive Approval Queue */}
-                  <div className="p-6 rounded-3xl border border-white/5 bg-slate-950/40 backdrop-blur-xl space-y-5 shadow-lg relative">
-                    <div className="absolute top-0 inset-x-0 h-[1px] bg-gradient-to-r from-transparent via-emerald-500/15 to-transparent" />
-                    
-                    <div className="border-b border-slate-900 pb-3 flex justify-between items-center">
-                      <div>
-                        <h3 className="text-xs font-bold text-white uppercase tracking-widest flex items-center gap-2 select-none">
-                          <CheckCircle2 size={14} className="text-emerald-400" />
-                          <span>VC Executive Approval Queue</span>
+                      {/* Weak Students list red alerts */}
+                      <div className="p-6 rounded-3xl border border-white/5 bg-slate-950/40 space-y-4 shadow-lg">
+                        <h3 className="text-xs font-bold text-white uppercase tracking-widest flex items-center gap-2">
+                          <AlertTriangle size={14} className="text-red-400" />
+                          <span>Critical Student Interventions Required</span>
                         </h3>
-                        <p className="text-[9px] text-slate-500 mt-1 leading-none">Requires authorized VC/Dean digital credentials</p>
-                      </div>
-                      <span className="px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-[9px] font-bold font-mono text-slate-400">
-                        {approvalsList.length} Dossiers
-                      </span>
-                    </div>
-
-                    <div className="space-y-3">
-                      <AnimatePresence>
-                        {approvalsList.length === 0 ? (
-                          <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-slate-500 text-xs text-center py-4">All approval dossiers cleared.</motion.p>
-                        ) : (
-                          approvalsList.map(app => (
-                            <motion.div 
-                              key={app.id} 
-                              layout
-                              exit={{ opacity: 0, x: -10 }}
-                              className="p-4 rounded-2xl bg-slate-950 border border-slate-900 flex items-center justify-between flex-wrap gap-4 hover:border-slate-800 transition group/app relative"
-                            >
-                              <div className="min-w-0 space-y-1">
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  <span className="text-[9px] font-bold text-blue-400 uppercase tracking-wide font-mono px-2 py-0.5 rounded bg-blue-500/10 border border-blue-500/20 leading-none">
-                                    {app.type}
-                                  </span>
-                                  <span className={`text-[9px] font-bold uppercase font-mono px-1.5 py-0.5 rounded leading-none ${
-                                    app.priority === "High" ? "bg-red-500/10 border border-red-500/20 text-red-400" : "bg-slate-900 border-slate-800 text-slate-500"
-                                  }`}>
-                                    {app.priority} Priority
-                                  </span>
-                                  <span className="text-[9px] text-slate-500 font-mono">Deadline: {app.deadline}</span>
-                                </div>
-                                <p className="text-xs font-bold text-white mt-1.5 truncate leading-none">{app.title}</p>
-                                <p className="text-[9px] text-slate-500 mt-1 leading-none">{app.desc}</p>
-                              </div>
-
-                              {/* Hover Dossier Preview */}
-                              <div className="absolute left-12 bottom-full mb-2 hidden group-hover/app:block p-3 rounded-xl border border-white/10 bg-slate-950 text-[10px] text-slate-300 w-64 shadow-2xl z-50">
-                                <p className="font-bold text-white uppercase tracking-wider text-[8px] text-blue-400 mb-1">Dossier Impact</p>
-                                <p>{app.impact}. Ready for baseline locking and system execution.</p>
-                              </div>
-
-                              <button 
-                                onClick={() => handleApproveDossier(app.id, app.title)}
-                                className="px-4 py-2 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-[10px] font-extrabold text-white cursor-pointer transition shrink-0"
-                              >
-                                Approve Dossier
-                              </button>
-                            </motion.div>
-                          ))
-                        )}
-                      </AnimatePresence>
-                    </div>
-                  </div>
-
-                </div>
-
-                {/* Right Columns (4 cols): AI Insight Panel, Live Feed */}
-                <div className="lg:col-span-4 space-y-8">
-                  
-                  {/* SECTION: AI Insight Panel */}
-                  <div className="p-5 rounded-3xl border border-purple-500/20 bg-gradient-to-br from-slate-950 to-purple-950/10 backdrop-blur-xl space-y-4.5 shadow-lg relative overflow-hidden">
-                    <div className="absolute top-0 inset-x-0 h-[1.5px] bg-gradient-to-r from-transparent via-purple-500/40 to-transparent" />
-                    
-                    <div className="flex justify-between items-center select-none">
-                      <h3 className="text-xs font-bold text-white flex items-center gap-2 uppercase tracking-wider">
-                        <Sparkles size={14} className="text-purple-400" />
-                        <span>AI Advisory Insight</span>
-                      </h3>
-                      <span className="px-2 py-0.5 rounded-full bg-purple-500/10 border border-purple-500/20 text-[9px] font-extrabold text-purple-400 font-mono">
-                        {aiInsight.confidence}% Confidence
-                      </span>
-                    </div>
-
-                    <div className="space-y-3.5 text-xs text-slate-300 leading-normal">
-                      <div className="p-3 bg-purple-500/5 border border-purple-500/10 rounded-2xl space-y-1">
-                        <span className="text-[9px] uppercase tracking-wider font-extrabold text-purple-400 font-mono">Recommendation</span>
-                        <p className="font-bold text-white">{aiInsight.recommendation}</p>
-                      </div>
-                      
-                      <div className="space-y-1 pl-1">
-                        <span className="text-[9px] uppercase tracking-wider font-extrabold text-slate-500 font-mono">Reasoning Protocol</span>
-                        <p className="text-[11px] text-slate-400">{aiInsight.reasoning}</p>
-                      </div>
-
-                      <div className="space-y-1 pl-1">
-                        <span className="text-[9px] uppercase tracking-wider font-extrabold text-slate-500 font-mono">Expected Impact</span>
-                        <p className="text-[11px] text-slate-400">{aiInsight.impact}</p>
-                      </div>
-
-                      <button 
-                        onClick={() => triggerToast("Workload balanced successfully via copilot.")}
-                        className="w-full py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-[10px] font-extrabold text-white transition flex items-center justify-center gap-1.5 shadow"
-                      >
-                        <Zap size={11} />
-                        <span>{aiInsight.actionLabel}</span>
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Live Command Feed */}
-                  <div className="p-5 rounded-3xl border border-white/5 bg-slate-900/20 backdrop-blur-xl space-y-4 shadow-lg relative">
-                    <div className="absolute top-0 inset-x-0 h-[1px] bg-gradient-to-r from-transparent via-blue-500/15 to-transparent" />
-                    
-                    <h3 className="text-xs font-bold text-white flex items-center gap-2 uppercase tracking-widest select-none">
-                      <Activity size={14} className="text-blue-400" />
-                      <span>Live Command Feed</span>
-                    </h3>
-                    
-                    <div className="relative pl-4 border-l border-slate-900 space-y-4 ml-1">
-                      {liveFeed.map((feed, idx) => (
-                        <div key={idx} className="relative text-xs leading-none">
-                          {/* Ping indicators based on severity */}
-                          <span className={`absolute -left-[20.5px] top-0.5 w-1.5 h-1.5 rounded-full ${
-                            feed.severity === "Critical" ? "bg-red-500" :
-                            feed.severity === "Warning" ? "bg-yellow-500" :
-                            feed.severity === "Resolved" ? "bg-emerald-500" : "bg-blue-500"
-                          } shrink-0`} />
-                          <p className="font-semibold text-white leading-none">{feed.action}</p>
-                          <p className="text-[9px] text-slate-500 leading-none mt-1.5">{feed.detail} • {feed.time}</p>
+                        <div className="space-y-3">
+                          <div className="p-4 bg-red-500/5 border border-red-500/10 rounded-2xl flex justify-between items-center">
+                            <div>
+                              <p className="text-xs font-bold text-white">Neha Reddy (CS-302 Algorithms)</p>
+                              <p className="text-[10px] text-slate-500 mt-1">Attendance: 58%. Midterm grading deviation: -12%.</p>
+                            </div>
+                            <span className="px-2 py-0.5 rounded bg-red-500/10 border border-red-500/20 text-[8px] font-extrabold text-red-400 uppercase">Attention</span>
+                          </div>
                         </div>
-                      ))}
+                      </div>
+                    </div>
+
+                    {/* Right: Faculty copilot */}
+                    <div className="lg:col-span-4 space-y-6">
+                      <div className="p-5 rounded-3xl border border-purple-500/20 bg-gradient-to-br from-slate-950 to-purple-950/10 space-y-4 shadow-lg">
+                        <h3 className="text-xs font-bold text-white flex items-center gap-2 uppercase tracking-wider">
+                          <Sparkles size={14} className="text-purple-400" />
+                          <span>Faculty AI Copilot</span>
+                        </h3>
+                        <div className="space-y-2">
+                          <button 
+                            onClick={() => { setAssistantInput("Draft Algorithms exam questions"); }}
+                            className="w-full text-left p-2.5 rounded-xl bg-slate-900 border border-slate-850 text-[10px] font-bold text-purple-400 hover:text-white transition"
+                          >
+                            📝 Generate Question Paper
+                          </button>
+                          <button 
+                            onClick={() => { setAssistantInput("Show weak students in CS-302"); }}
+                            className="w-full text-left p-2.5 rounded-xl bg-slate-900 border border-slate-850 text-[10px] font-bold text-purple-400 hover:text-white transition"
+                          >
+                            🔍 Search weak student alerts
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   </div>
 
+                  {/* Actions */}
+                  <div className="p-5 rounded-2xl border border-white/5 bg-slate-950/40 space-y-4">
+                    <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider font-mono">Workspace Quick Actions</p>
+                    <div className="flex flex-wrap gap-4">
+                      <button onClick={() => triggerToast("New assignment created successfully.")} className="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-850 border border-slate-800 text-xs font-bold text-slate-300 hover:text-white transition">Create Assignment</button>
+                      <button onClick={() => triggerToast("Marks dossier uploaded to registrar.")} className="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-850 border border-slate-800 text-xs font-bold text-slate-300 hover:text-white transition">Upload Marks Dossier</button>
+                      <button onClick={() => triggerToast("Announcements circular dispatched.")} className="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-850 border border-slate-800 text-xs font-bold text-slate-300 hover:text-white transition">Send Notice</button>
+                    </div>
+                  </div>
                 </div>
+              )}
 
-              </div>
+              {/* ────────────────────────────────────────────────────────
+                  SUB-VIEW 3: HOD DASHBOARD
+                  ──────────────────────────────────────────────────────── */}
+              {activeSubView === "HOD Advisor" && (
+                <div className="space-y-8">
+                  {/* KPIs */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                    <div className="p-5 rounded-2xl border border-white/5 bg-slate-950/40 h-32 flex flex-col justify-between">
+                      <div className="flex justify-between items-center text-[10px] text-slate-500 font-bold uppercase tracking-wider">
+                        <span>Faculty Index</span>
+                        <Users size={14} className="text-blue-400" />
+                      </div>
+                      <h3 className="text-2xl font-extrabold text-white font-mono">{HODData.facultyIndex}</h3>
+                      <p className="text-[9px] text-emerald-400 font-bold">Excellent feedback average</p>
+                    </div>
+
+                    <div className="p-5 rounded-2xl border border-white/5 bg-slate-950/40 h-32 flex flex-col justify-between">
+                      <div className="flex justify-between items-center text-[10px] text-slate-500 font-bold uppercase tracking-wider">
+                        <span>Placement Yield</span>
+                        <Briefcase size={14} className="text-emerald-400" />
+                      </div>
+                      <h3 className="text-2xl font-extrabold text-white font-mono">{HODData.placementYield}</h3>
+                      <p className="text-[9px] text-emerald-400 font-bold">Ranked #1 on campus</p>
+                    </div>
+
+                    <div className="p-5 rounded-2xl border border-white/5 bg-slate-950/40 h-32 flex flex-col justify-between">
+                      <div className="flex justify-between items-center text-[10px] text-slate-500 font-bold uppercase tracking-wider">
+                        <span>Research Funding</span>
+                        <DollarSign size={14} className="text-purple-400" />
+                      </div>
+                      <h3 className="text-2xl font-extrabold text-white font-mono">{HODData.reserves}</h3>
+                      <p className="text-[9px] text-slate-500">Q3 allocations</p>
+                    </div>
+
+                    <div className="p-5 rounded-2xl border border-white/5 bg-slate-950/40 h-32 flex flex-col justify-between">
+                      <div className="flex justify-between items-center text-[10px] text-slate-500 font-bold uppercase tracking-wider">
+                        <span>Accreditation Gaps</span>
+                        <CheckSquare size={14} className="text-pink-400" />
+                      </div>
+                      <h3 className="text-2xl font-extrabold text-pink-400 font-mono">{HODData.accreditationScore}</h3>
+                      <p className="text-[9px] text-slate-500 font-mono">1 pending dossier verification</p>
+                    </div>
+                  </div>
+
+                  {/* Layout split */}
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                    {/* Left: Load balancing & checklist */}
+                    <div className="lg:col-span-8 space-y-8">
+                      <div className="p-6 rounded-3xl border border-white/5 bg-slate-950/40 space-y-4 shadow-lg">
+                        <h3 className="text-xs font-bold text-white uppercase tracking-widest flex items-center gap-2">
+                          <Sliders size={14} className="text-blue-500" />
+                          <span>Accreditation Audit Trackers</span>
+                        </h3>
+                        <div className="space-y-2">
+                          {HODData.accreditationTasks.map((t, i) => (
+                            <div key={i} className="p-4 bg-slate-950 border border-slate-900 rounded-2xl flex justify-between items-center">
+                              <p className="text-xs font-bold text-white">{t.name}</p>
+                              <span className={`px-2 py-0.5 rounded text-[8px] font-extrabold uppercase ${
+                                t.status === "Done" ? "bg-emerald-500/10 border border-emerald-500/20 text-emerald-400" : "bg-yellow-500/10 border border-yellow-500/20 text-yellow-400"
+                              }`}>{t.status}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Overload optimizer */}
+                      <div className="p-6 rounded-3xl border border-white/5 bg-slate-950/40 space-y-4 shadow-lg">
+                        <h3 className="text-xs font-bold text-white uppercase tracking-widest flex items-center gap-2">
+                          <Users size={14} className="text-blue-500" />
+                          <span>Instructor Workload Optimizer</span>
+                        </h3>
+                        <div className="space-y-2">
+                          {HODData.facultyLoads.map((f, i) => (
+                            <div key={i} className="p-4 bg-slate-950 border border-slate-900 rounded-2xl flex justify-between items-center">
+                              <div>
+                                <p className="text-xs font-bold text-white">{f.name}</p>
+                                <p className="text-[10px] text-slate-500 mt-0.5">Assigned teaching hours: {f.load}</p>
+                              </div>
+                              <span className={`px-2 py-0.5 rounded text-[8px] font-extrabold uppercase ${
+                                f.status === "Overloaded" ? "bg-red-500/10 border border-red-500/20 text-red-400" :
+                                f.status === "Underloaded" ? "bg-yellow-500/10 border border-yellow-500/20 text-yellow-400" : "bg-emerald-500/10 border border-emerald-500/20 text-emerald-400"
+                              }`}>{f.status}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Right: Advisor panel */}
+                    <div className="lg:col-span-4 space-y-6">
+                      <div className="p-5 rounded-3xl border border-purple-500/20 bg-gradient-to-br from-slate-950 to-purple-950/10 space-y-4 shadow-lg">
+                        <h3 className="text-xs font-bold text-white flex items-center gap-2 uppercase tracking-wider">
+                          <Sparkles size={14} className="text-purple-400" />
+                          <span>HOD AI Advisor</span>
+                        </h3>
+                        <div className="space-y-2">
+                          <button 
+                            onClick={() => { setAssistantInput("Suggest workload balancing options"); }}
+                            className="w-full text-left p-2.5 rounded-xl bg-slate-900 border border-slate-850 text-[10px] font-bold text-purple-400 hover:text-white transition"
+                          >
+                            ⚖️ Optimize Faculty teaching loads
+                          </button>
+                          <button 
+                            onClick={() => { setAssistantInput("Show accreditation gaps"); }}
+                            className="w-full text-left p-2.5 rounded-xl bg-slate-900 border border-slate-850 text-[10px] font-bold text-purple-400 hover:text-white transition"
+                          >
+                            📋 Check accreditation gaps
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Actions */}
+                  <div className="p-5 rounded-2xl border border-white/5 bg-slate-950/40 space-y-4">
+                    <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider font-mono">Administration Actions</p>
+                    <div className="flex flex-wrap gap-4">
+                      <button onClick={() => triggerToast("Faculty workload balanced successfully.")} className="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-850 border border-slate-800 text-xs font-bold text-slate-300 hover:text-white transition">Balance Load Matrix</button>
+                      <button onClick={() => triggerToast("Accreditation dossier locked and synchronized.")} className="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-850 border border-slate-800 text-xs font-bold text-slate-300 hover:text-white transition">Sync Accreditation Dossier</button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* ────────────────────────────────────────────────────────
+                  SUB-VIEW 4: FINANCE HUB
+                  ──────────────────────────────────────────────────────── */}
+              {activeSubView === "Finance Hub" && (
+                <div className="space-y-8">
+                  {/* KPIs */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                    <div className="p-5 rounded-2xl border border-white/5 bg-slate-950/40 h-32 flex flex-col justify-between">
+                      <div className="flex justify-between items-center text-[10px] text-slate-500 font-bold uppercase tracking-wider">
+                        <span>Revenue Collected</span>
+                        <DollarSign size={14} className="text-emerald-400" />
+                      </div>
+                      <h3 className="text-2xl font-extrabold text-white font-mono">{FinanceData.revenue}</h3>
+                      <p className="text-[9px] text-slate-500">Q3 Target: $1.50M</p>
+                    </div>
+
+                    <div className="p-5 rounded-2xl border border-white/5 bg-slate-950/40 h-32 flex flex-col justify-between">
+                      <div className="flex justify-between items-center text-[10px] text-slate-500 font-bold uppercase tracking-wider">
+                        <span>Outstanding Balances</span>
+                        <AlertCircle size={14} className="text-red-400" />
+                      </div>
+                      <h3 className="text-2xl font-extrabold text-red-400 font-mono">{FinanceData.outstanding}</h3>
+                      <p className="text-[9px] text-slate-500 font-mono">Dues warning dispatches active</p>
+                    </div>
+
+                    <div className="p-5 rounded-2xl border border-white/5 bg-slate-950/40 h-32 flex flex-col justify-between">
+                      <div className="flex justify-between items-center text-[10px] text-slate-500 font-bold uppercase tracking-wider">
+                        <span>Monthly Payroll</span>
+                        <CreditCard size={14} className="text-blue-400" />
+                      </div>
+                      <h3 className="text-2xl font-extrabold text-white font-mono">{FinanceData.payroll}</h3>
+                      <p className="text-[9px] text-slate-500">Salary payouts scheduled</p>
+                    </div>
+
+                    <div className="p-5 rounded-2xl border border-white/5 bg-slate-950/40 h-32 flex flex-col justify-between">
+                      <div className="flex justify-between items-center text-[10px] text-slate-500 font-bold uppercase tracking-wider">
+                        <span>Collection Yield</span>
+                        <TrendingUp size={14} className="text-emerald-400" />
+                      </div>
+                      <h3 className="text-2xl font-extrabold text-emerald-400 font-mono">{FinanceData.yieldRate}</h3>
+                      <p className="text-[9px] text-slate-500">Yield target matched</p>
+                    </div>
+                  </div>
+
+                  {/* Main Split */}
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                    {/* Left: Financial Ledger chart */}
+                    <div className="lg:col-span-8 space-y-8">
+                      <div className="p-6 rounded-3xl border border-white/5 bg-slate-950/40 space-y-4 shadow-lg">
+                        <h3 className="text-xs font-bold text-white uppercase tracking-widest flex items-center gap-2">
+                          <BarChart3 size={14} className="text-blue-500" />
+                          <span>Fee Collections Ledger Flow</span>
+                        </h3>
+                        <div className="h-44 w-full flex items-end gap-6 pt-4">
+                          <div className="flex-1 bg-slate-900 h-28 rounded-xl relative"><div className="absolute bottom-0 inset-x-0 bg-emerald-500 h-24 rounded-xl text-[9px] font-bold text-center pt-2">Q1</div></div>
+                          <div className="flex-1 bg-slate-900 h-36 rounded-xl relative"><div className="absolute bottom-0 inset-x-0 bg-emerald-500 h-32 rounded-xl text-[9px] font-bold text-center pt-2">Q2</div></div>
+                          <div className="flex-1 bg-slate-900 h-24 rounded-xl relative"><div className="absolute bottom-0 inset-x-0 bg-blue-500 h-16 rounded-xl text-[9px] font-bold text-center pt-2">Q3 (Live)</div></div>
+                        </div>
+                      </div>
+
+                      {/* Outstanding dues list */}
+                      <div className="p-6 rounded-3xl border border-white/5 bg-slate-950/40 space-y-4 shadow-lg">
+                        <h3 className="text-xs font-bold text-white uppercase tracking-widest flex items-center gap-2">
+                          <AlertTriangle size={14} className="text-yellow-400" />
+                          <span>Outstanding Fee Balances by Student</span>
+                        </h3>
+                        <div className="space-y-2">
+                          {FinanceData.unpaidList.map((st, i) => (
+                            <div key={i} className="p-4 bg-slate-950 border border-slate-900 rounded-2xl flex justify-between items-center">
+                              <div>
+                                <p className="text-xs font-bold text-white">{st.student}</p>
+                                <p className="text-[10px] text-slate-500 mt-0.5">Dues amount: {st.dues}</p>
+                              </div>
+                              <span className="px-2 py-0.5 rounded bg-red-500/10 border border-red-500/20 text-[8px] font-extrabold text-red-400 uppercase">{st.status}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Right: Finance copilot */}
+                    <div className="lg:col-span-4 space-y-6">
+                      <div className="p-5 rounded-3xl border border-purple-500/20 bg-gradient-to-br from-slate-950 to-purple-950/10 space-y-4 shadow-lg">
+                        <h3 className="text-xs font-bold text-white flex items-center gap-2 uppercase tracking-wider">
+                          <Sparkles size={14} className="text-purple-400" />
+                          <span>Finance AI Assistant</span>
+                        </h3>
+                        <div className="space-y-2">
+                          <button 
+                            onClick={() => { setAssistantInput("Predict next month's fee collection"); }}
+                            className="w-full text-left p-2.5 rounded-xl bg-slate-900 border border-slate-850 text-[10px] font-bold text-purple-400 hover:text-white transition"
+                          >
+                            📈 Predict Q3 collections yield
+                          </button>
+                          <button 
+                            onClick={() => { setAssistantInput("Analyze outstanding fee risk metrics"); }}
+                            className="w-full text-left p-2.5 rounded-xl bg-slate-900 border border-slate-850 text-[10px] font-bold text-purple-400 hover:text-white transition"
+                          >
+                            ⚠️ Scan outstanding balance risk
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Actions */}
+                  <div className="p-5 rounded-2xl border border-white/5 bg-slate-950/40 space-y-4">
+                    <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider font-mono">Financial Operations</p>
+                    <div className="flex flex-wrap gap-4">
+                      <button onClick={() => triggerToast("Financial report spreadsheet exported successfully.")} className="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-850 border border-slate-800 text-xs font-bold text-slate-300 hover:text-white transition">Export Audit Sheets</button>
+                      <button onClick={() => triggerToast("Monthly salary dispatches scheduled successfully.")} className="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-850 border border-slate-800 text-xs font-bold text-slate-300 hover:text-white transition">Process Payroll Dispatch</button>
+                      <button onClick={() => triggerToast("Dues warning notices dispatched to outstanding roster.")} className="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-850 border border-slate-800 text-xs font-bold text-slate-300 hover:text-white transition">Send Dues Reminders</button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* ────────────────────────────────────────────────────────
+                  SUB-VIEW 5: PLACEMENT SUITE
+                  ──────────────────────────────────────────────────────── */}
+              {activeSubView === "Placement Suite" && (
+                <div className="space-y-8">
+                  {/* KPIs */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                    <div className="p-5 rounded-2xl border border-white/5 bg-slate-950/40 h-32 flex flex-col justify-between">
+                      <div className="flex justify-between items-center text-[10px] text-slate-500 font-bold uppercase tracking-wider">
+                        <span>Average Package</span>
+                        <Briefcase size={14} className="text-blue-400" />
+                      </div>
+                      <h3 className="text-2xl font-extrabold text-white font-mono">{PlacementData.averagePackage}</h3>
+                      <p className="text-[9px] text-emerald-400 font-bold">+18% over last batch</p>
+                    </div>
+
+                    <div className="p-5 rounded-2xl border border-white/5 bg-slate-950/40 h-32 flex flex-col justify-between">
+                      <div className="flex justify-between items-center text-[10px] text-slate-500 font-bold uppercase tracking-wider">
+                        <span>Highest Offer</span>
+                        <Award size={14} className="text-yellow-400" />
+                      </div>
+                      <h3 className="text-2xl font-extrabold text-yellow-400 font-mono">{PlacementData.highestPackage}</h3>
+                      <p className="text-[9px] text-slate-500">Sourced from Core AI research</p>
+                    </div>
+
+                    <div className="p-5 rounded-2xl border border-white/5 bg-slate-950/40 h-32 flex flex-col justify-between">
+                      <div className="flex justify-between items-center text-[10px] text-slate-500 font-bold uppercase tracking-wider">
+                        <span>Eligible Candidates</span>
+                        <Users size={14} className="text-blue-400" />
+                      </div>
+                      <h3 className="text-2xl font-extrabold text-white font-mono">{PlacementData.eligibleCount} Students</h3>
+                      <p className="text-[9px] text-slate-500">Roster matches drive criteria</p>
+                    </div>
+
+                    <div className="p-5 rounded-2xl border border-white/5 bg-slate-950/40 h-32 flex flex-col justify-between">
+                      <div className="flex justify-between items-center text-[10px] text-slate-500 font-bold uppercase tracking-wider">
+                        <span>Placed Yield</span>
+                        <TrendingUp size={14} className="text-emerald-400" />
+                      </div>
+                      <h3 className="text-2xl font-extrabold text-emerald-400 font-mono">{PlacementData.placedRatio}</h3>
+                      <p className="text-[9px] text-slate-500 font-mono">Stable recruiting funnel</p>
+                    </div>
+                  </div>
+
+                  {/* Split layout */}
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                    {/* Left: Recruiters list & drive checklist */}
+                    <div className="lg:col-span-8 space-y-8">
+                      <div className="p-6 rounded-3xl border border-white/5 bg-slate-950/40 space-y-4 shadow-lg">
+                        <h3 className="text-xs font-bold text-white uppercase tracking-widest flex items-center gap-2">
+                          <Calendar size={14} className="text-blue-500" />
+                          <span>Recruitment Drive Timelines</span>
+                        </h3>
+                        <div className="space-y-2">
+                          {PlacementData.upcomingDrives.map((d, i) => (
+                            <div key={i} className="p-4 bg-slate-950 border border-slate-900 rounded-2xl flex justify-between items-center">
+                              <div>
+                                <p className="text-xs font-bold text-white">{d.company}</p>
+                                <p className="text-[10px] text-slate-500 mt-0.5">Role Type: {d.type}</p>
+                              </div>
+                              <span className="px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 text-[10px] font-mono">{d.date}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Eligibility checklist */}
+                      <div className="p-6 rounded-3xl border border-white/5 bg-slate-950/40 space-y-4 shadow-lg">
+                        <h3 className="text-xs font-bold text-white uppercase tracking-widest flex items-center gap-2">
+                          <CheckSquare size={14} className="text-blue-500" />
+                          <span>Microsoft drive candidate eligibilities</span>
+                        </h3>
+                        <div className="space-y-2">
+                          {PlacementData.readinessList.map((st, i) => (
+                            <div key={i} className="p-4 bg-slate-950 border border-slate-900 rounded-2xl flex justify-between items-center">
+                              <div>
+                                <p className="text-xs font-bold text-white">{st.name}</p>
+                                <p className="text-[10px] text-slate-500 mt-0.5">CGPA: {st.cgpa} • Coding Score: {st.codeScore}</p>
+                              </div>
+                              <span className="px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20 text-[8px] font-extrabold text-emerald-400 uppercase">{st.status}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Right: AI Placement optimizer */}
+                    <div className="lg:col-span-4 space-y-6">
+                      <div className="p-5 rounded-3xl border border-purple-500/20 bg-gradient-to-br from-slate-950 to-purple-950/10 space-y-4 shadow-lg">
+                        <h3 className="text-xs font-bold text-white flex items-center gap-2 uppercase tracking-wider">
+                          <Sparkles size={14} className="text-purple-400" />
+                          <span>AI Resume & Coach Assistant</span>
+                        </h3>
+                        <div className="space-y-2">
+                          <button 
+                            onClick={() => { setAssistantInput("Which students are ready for Microsoft drives?"); }}
+                            className="w-full text-left p-2.5 rounded-xl bg-slate-900 border border-slate-850 text-[10px] font-bold text-purple-400 hover:text-white transition"
+                          >
+                            💼 Scan candidates for Microsoft drive
+                          </button>
+                          <button 
+                            onClick={() => { setAssistantInput("Analyze placements readiness scores"); }}
+                            className="w-full text-left p-2.5 rounded-xl bg-slate-900 border border-slate-850 text-[10px] font-bold text-purple-400 hover:text-white transition"
+                          >
+                            🔍 Compile placements suitability metrics
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Actions */}
+                  <div className="p-5 rounded-2xl border border-white/5 bg-slate-950/40 space-y-4">
+                    <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider font-mono">Placement Coordination</p>
+                    <div className="flex flex-wrap gap-4">
+                      <button onClick={() => triggerToast("Eligibility notifications dispatched to matching candidate rosters.")} className="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-850 border border-slate-800 text-xs font-bold text-slate-300 hover:text-white transition">Send Eligibility Notices</button>
+                      <button onClick={() => triggerToast("Current placement drive report exported successfully.")} className="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-850 border border-slate-800 text-xs font-bold text-slate-300 hover:text-white transition">Export Roster Sheets</button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* ────────────────────────────────────────────────────────
+                  SUB-VIEW 6: VC / DEAN COMMAND CENTER (DEFAULT ADMIN)
+                  ──────────────────────────────────────────────────────── */}
+              {activeSubView === "VC Command Center" && (
+                <div className="space-y-8">
+                  {/* KPIs */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                    {/* Health Score */}
+                    <div className="relative rounded-2xl border border-white/5 bg-slate-950/40 p-5 backdrop-blur-xl group hover:border-slate-800 transition shadow flex flex-col justify-between h-36">
+                      <div className="flex justify-between items-center">
+                        <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Health Index</span>
+                        <Heart size={14} className="text-red-400 animate-pulse" />
+                      </div>
+                      <div className="my-1">
+                        <h3 className="text-2xl font-extrabold text-white mt-1 font-mono">{healthScore}%</h3>
+                        <div className="h-5 w-full mt-2">
+                          <svg className="w-full h-full stroke-emerald-500/40 fill-none" viewBox="0 0 100 20">
+                            <path d="M0,12 Q15,18 30,12 T60,5 T90,9 T100,2" strokeWidth="1.8" />
+                          </svg>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between text-[9px]">
+                        <span className="text-emerald-400 font-bold flex items-center gap-0.5"><TrendingUp size={9} />+1.2%</span>
+                        <span className="text-slate-500 font-semibold uppercase font-mono">Prediction: Stable</span>
+                      </div>
+                    </div>
+
+                    {/* AI Risk Index */}
+                    <div className="relative rounded-2xl border border-purple-500/15 bg-slate-950/40 p-5 backdrop-blur-xl group hover:border-purple-500/30 transition shadow flex flex-col justify-between h-36">
+                      <div className="flex justify-between items-center">
+                        <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">AI Risk Index</span>
+                        <Sparkles size={14} className="text-purple-400" />
+                      </div>
+                      <div className="my-1">
+                        <h3 className="text-2xl font-extrabold text-purple-400 mt-1 font-mono">{riskIndex}</h3>
+                        <div className="h-5 w-full mt-2">
+                          <svg className="w-full h-full stroke-purple-500/40 fill-none" viewBox="0 0 100 20">
+                            <path d="M0,5 Q20,15 40,8 T70,12 T100,4" strokeWidth="1.8" />
+                          </svg>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between text-[9px]">
+                        <span className="text-purple-400 font-bold">1 Alert Flagged</span>
+                        <span className="px-1.5 py-0.5 rounded bg-red-500/10 border border-red-500/20 text-[8px] font-bold text-red-400 uppercase">Attention</span>
+                      </div>
+                    </div>
+
+                    {/* Budget Insights */}
+                    <div className="relative rounded-2xl border border-white/5 bg-slate-950/40 p-5 backdrop-blur-xl group hover:border-slate-800 transition shadow flex flex-col justify-between h-36">
+                      <div className="flex justify-between items-center">
+                        <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Fees Collection</span>
+                        <DollarSign size={14} className="text-emerald-400" />
+                      </div>
+                      <div className="my-1">
+                        <h3 className="text-2xl font-extrabold text-white mt-1 font-mono">{budgetCollected}</h3>
+                        <div className="h-5 w-full mt-2">
+                          <svg className="w-full h-full stroke-emerald-500/40 fill-none" viewBox="0 0 100 20">
+                            <path d="M0,18 Q20,12 40,15 T75,6 T100,2" strokeWidth="1.8" />
+                          </svg>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between text-[9px]">
+                        <span className="text-slate-500">Goal: {budgetGoal}</span>
+                        <span className="text-emerald-400 font-bold">82% yield</span>
+                      </div>
+                    </div>
+
+                    {/* Placement Forecast */}
+                    <div className="relative rounded-2xl border border-white/5 bg-slate-950/40 p-5 backdrop-blur-xl group hover:border-slate-800 transition shadow flex flex-col justify-between h-36">
+                      <div className="flex justify-between items-center">
+                        <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Placement Forecast</span>
+                        <Briefcase size={14} className="text-blue-400" />
+                      </div>
+                      <div className="my-1">
+                        <h3 className="text-2xl font-extrabold text-blue-400 mt-1 font-mono">{placementRate}</h3>
+                        <div className="h-5 w-full mt-2">
+                          <svg className="w-full h-full stroke-blue-500/40 fill-none" viewBox="0 0 100 20">
+                            <path d="M0,15 Q30,10 60,14 T100,5" strokeWidth="1.8" />
+                          </svg>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between text-[9px]">
+                        <span className="text-emerald-400 font-bold flex items-center gap-0.5"><TrendingUp size={9} />+4.1%</span>
+                        <span className="text-slate-500">Projected yield</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Active Registries Counts Row */}
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 border-t border-b border-slate-900 py-5 select-none bg-slate-950/20 px-4 rounded-2xl">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400 shrink-0">
+                        <Users size={16} />
+                      </div>
+                      <div>
+                        <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider leading-none">Total Students</p>
+                        <p className="text-sm font-extrabold text-white mt-1.5 leading-none font-mono">{metricsData.studentsCount}</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400 shrink-0">
+                        <GraduationCap size={16} />
+                      </div>
+                      <div>
+                        <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider leading-none">Total Faculty</p>
+                        <p className="text-sm font-extrabold text-white mt-1.5 leading-none font-mono">{metricsData.facultyCount}</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-xl bg-pink-500/10 border border-pink-500/20 flex items-center justify-center text-pink-400 shrink-0">
+                        <Building size={16} />
+                      </div>
+                      <div>
+                        <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider leading-none">Active Departments</p>
+                        <p className="text-sm font-extrabold text-white mt-1.5 leading-none font-mono">{metricsData.departmentsCount}</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0">
+                        <Activity size={16} />
+                      </div>
+                      <div>
+                        <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider leading-none">Avg Attendance</p>
+                        <p className="text-sm font-extrabold text-white mt-1.5 leading-none font-mono">{metricsData.averageAttendance}%</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Command Split panels */}
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+                    
+                    {/* Left: Admissions charts, VC Approvals */}
+                    <div className="lg:col-span-8 space-y-8">
+                      <div className="p-6 rounded-3xl border border-white/5 bg-slate-950/40 backdrop-blur-xl space-y-6 shadow-lg relative">
+                        <div className="absolute top-0 inset-x-0 h-[1px] bg-gradient-to-r from-transparent via-blue-500/15 to-transparent" />
+                        
+                        <div className="flex items-center justify-between border-b border-slate-900 pb-4 flex-wrap gap-4 select-none">
+                          <div className="space-y-1">
+                            <h3 className="text-xs font-bold text-white uppercase tracking-widest flex items-center gap-2">
+                              <BarChart3 size={14} className="text-blue-500" />
+                              <span>Real-time Command Analytics</span>
+                            </h3>
+                            <p className="text-[9px] text-slate-500 font-semibold font-mono">Interactive index mapping</p>
+                          </div>
+
+                          <div className="flex items-center gap-3">
+                            <div className="flex bg-slate-900 p-0.5 rounded-lg border border-slate-850">
+                              {["Week", "Month", "Year"].map(t => (
+                                <button
+                                  key={t}
+                                  onClick={() => setChartTimeRange(t as any)}
+                                  className={`px-2.5 py-1 rounded-md text-[9px] font-bold uppercase tracking-wider transition cursor-pointer ${
+                                    chartTimeRange === t ? "bg-slate-950 text-white border border-white/5" : "text-slate-500 hover:text-slate-300"
+                                  }`}
+                                >
+                                  {t}
+                                </button>
+                              ))}
+                            </div>
+
+                            <div className="flex bg-slate-900 p-0.5 rounded-lg border border-slate-850">
+                              <button 
+                                onClick={() => setActiveChartTab("admissions")}
+                                className={`px-2.5 py-1 rounded-md text-[9px] font-bold uppercase tracking-wider transition cursor-pointer ${
+                                  activeChartTab === "admissions" ? "bg-slate-950 text-blue-400 border border-white/5" : "text-slate-500 hover:text-slate-350"
+                                }`}
+                              >
+                                Funnel
+                              </button>
+                              <button 
+                                onClick={() => setActiveChartTab("departments")}
+                                className={`px-2.5 py-1 rounded-md text-[9px] font-bold uppercase tracking-wider transition cursor-pointer ${
+                                  activeChartTab === "departments" ? "bg-slate-950 text-purple-400 border border-white/5" : "text-slate-500 hover:text-slate-350"
+                                }`}
+                              >
+                                Departments
+                              </button>
+                              <button 
+                                onClick={() => setActiveChartTab("occupancy")}
+                                className={`px-2.5 py-1 rounded-md text-[9px] font-bold uppercase tracking-wider transition cursor-pointer ${
+                                  activeChartTab === "occupancy" ? "bg-slate-950 text-emerald-400 border border-white/5" : "text-slate-500 hover:text-slate-350"
+                                }`}
+                              >
+                                Hostel
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="h-56 w-full flex flex-col justify-center">
+                          <AnimatePresence mode="wait">
+                            {activeChartTab === "admissions" && (
+                              <motion.div 
+                                key={`admissions-${chartTimeRange}`} 
+                                initial={{ opacity: 0, y: 5 }} 
+                                animate={{ opacity: 1, y: 0 }} 
+                                exit={{ opacity: 0, y: -5 }} 
+                                className="w-full h-full flex flex-col justify-between pt-2 space-y-4"
+                              >
+                                <div className="space-y-1.5">
+                                  <div className="flex justify-between text-[11px] font-semibold text-slate-400">
+                                    <span>Applications Submitted</span>
+                                    <span className="text-white font-mono">{chartTimeRange === "Week" ? "420" : chartTimeRange === "Month" ? "4.8K" : "28K"} candidates</span>
+                                  </div>
+                                  <div className="w-full bg-slate-900 h-2 rounded-full overflow-hidden">
+                                    <motion.div 
+                                      initial={{ width: 0 }}
+                                      animate={{ width: "100%" }}
+                                      transition={{ duration: 0.6 }}
+                                      className="h-full bg-blue-500" 
+                                    />
+                                  </div>
+                                </div>
+
+                                <div className="space-y-1.5">
+                                  <div className="flex justify-between text-[11px] font-semibold text-slate-400">
+                                    <span>Offers Dispatched</span>
+                                    <span className="text-white font-mono">{chartTimeRange === "Week" ? "105" : chartTimeRange === "Month" ? "1.2K" : "7.2K"} (25% rate)</span>
+                                  </div>
+                                  <div className="w-full bg-slate-900 h-2 rounded-full overflow-hidden">
+                                    <motion.div 
+                                      initial={{ width: 0 }}
+                                      animate={{ width: "25%" }}
+                                      transition={{ duration: 0.6, delay: 0.1 }}
+                                      className="h-full bg-purple-500" 
+                                    />
+                                  </div>
+                                </div>
+
+                                <div className="space-y-1.5">
+                                  <div className="flex justify-between text-[11px] font-semibold text-slate-400">
+                                    <span>Registered & Enrolled</span>
+                                    <span className="text-white font-mono">{chartTimeRange === "Week" ? "71" : chartTimeRange === "Month" ? "820" : "4.9K"} (Yield rate)</span>
+                                  </div>
+                                  <div className="w-full bg-slate-900 h-2 rounded-full overflow-hidden">
+                                    <motion.div 
+                                      initial={{ width: 0 }}
+                                      animate={{ width: "17%" }}
+                                      transition={{ duration: 0.6, delay: 0.2 }}
+                                      className="h-full bg-emerald-500" 
+                                    />
+                                  </div>
+                                </div>
+                              </motion.div>
+                            )}
+
+                            {activeChartTab === "departments" && (
+                              <motion.div 
+                                key={`departments-${chartTimeRange}`} 
+                                initial={{ opacity: 0, scale: 0.98 }} 
+                                animate={{ opacity: 1, scale: 1 }} 
+                                exit={{ opacity: 0 }} 
+                                className="w-full h-full flex items-center justify-around gap-4 pt-2"
+                              >
+                                <div className="text-center space-y-2">
+                                  <div className="w-20 h-20 rounded-full border-4 border-emerald-500/20 border-t-emerald-500 flex flex-col items-center justify-center font-bold text-xs text-white font-mono shadow-md animate-spin-slow">
+                                    <span>{chartTimeRange === "Week" ? "92%" : "94%"}</span>
+                                  </div>
+                                  <p className="text-[10px] text-slate-500 font-extrabold uppercase tracking-wider font-mono">CSE Utilization</p>
+                                </div>
+                                <div className="text-center space-y-2">
+                                  <div className="w-20 h-20 rounded-full border-4 border-blue-500/20 border-t-blue-500 flex flex-col items-center justify-center font-bold text-xs text-white font-mono shadow-md animate-spin-slow">
+                                    <span>{chartTimeRange === "Week" ? "85%" : "88%"}</span>
+                                  </div>
+                                  <p className="text-[10px] text-slate-500 font-extrabold uppercase tracking-wider font-mono">ECE Utilization</p>
+                                </div>
+                                <div className="text-center space-y-2">
+                                  <div className="w-20 h-20 rounded-full border-4 border-purple-500/20 border-t-purple-500 flex flex-col items-center justify-center font-bold text-xs text-white font-mono shadow-md animate-spin-slow">
+                                    <span>{chartTimeRange === "Week" ? "80%" : "82%"}</span>
+                                  </div>
+                                  <p className="text-[10px] text-slate-500 font-extrabold uppercase tracking-wider font-mono">ME Utilization</p>
+                                </div>
+                              </motion.div>
+                            )}
+
+                            {activeChartTab === "occupancy" && (
+                              <motion.div 
+                                key={`occupancy-${chartTimeRange}`} 
+                                initial={{ opacity: 0 }} 
+                                animate={{ opacity: 1 }} 
+                                exit={{ opacity: 0 }} 
+                                className="w-full h-full flex flex-col justify-center space-y-4"
+                              >
+                                <div className="flex items-center justify-between p-4 bg-slate-950 border border-slate-900 rounded-2xl hover:border-slate-800 transition">
+                                  <div className="space-y-1">
+                                    <p className="text-xs font-extrabold text-white leading-none">Hostel Occupancy Index</p>
+                                    <p className="text-[9px] text-slate-500 leading-none">Block A & B fully loaded</p>
+                                  </div>
+                                  <span className="text-xs font-bold text-emerald-400 font-mono">94.2% Occupied</span>
+                                </div>
+                                
+                                <div className="flex items-center justify-between p-4 bg-slate-950 border border-slate-900 rounded-2xl hover:border-slate-800 transition">
+                                  <div className="space-y-1">
+                                    <p className="text-xs font-extrabold text-white leading-none">Mess Feedback Ratings</p>
+                                    <p className="text-[9px] text-slate-500 leading-none">Weekly average score indices</p>
+                                  </div>
+                                  <span className="text-xs font-bold text-blue-400 font-mono">4.4 / 5.0 Rating</span>
+                                </div>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Right: VC advisory suggestions & feed */}
+                    <div className="lg:col-span-4 space-y-8">
+                      <div className="p-5 rounded-3xl border border-purple-500/20 bg-gradient-to-br from-slate-950 to-purple-950/10 backdrop-blur-xl space-y-4 shadow-lg relative">
+                        <h3 className="text-xs font-bold text-white flex items-center gap-2 uppercase tracking-wider select-none">
+                          <Sparkles size={14} className="text-purple-400 animate-pulse" />
+                          <span>AI Advisory Suggestions</span>
+                        </h3>
+                        <div className="space-y-3.5 text-xs text-slate-350 font-semibold leading-relaxed">
+                          <div className="p-3 bg-purple-500/5 border border-purple-500/10 rounded-2xl space-y-1">
+                            <span className="text-[9px] uppercase tracking-wider font-extrabold text-purple-400 font-mono">Advisory Suggestion</span>
+                            <p className="font-bold text-white">Reallocate CS-302 Algorithms Lab</p>
+                          </div>
+                          <p className="text-[11px] text-slate-400">Dr Jenkins is overloaded. Balance load limits dynamically.</p>
+                          <button 
+                            onClick={() => triggerToast("Workload balanced successfully via copilot.")}
+                            className="w-full py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-[10px] font-extrabold text-white transition flex items-center justify-center gap-1.5 shadow"
+                          >
+                            <Zap size={11} />
+                            <span>Optimize Faculty Load</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                  </div>
+                </div>
+              )}
             </motion.div>
           )}
 
@@ -926,13 +1524,13 @@ function Dashboard() {
                   ) : (
                     notificationsList.filter(n => n.cat === activeNotificationTab).map(not => (
                       <div key={not.id} className="p-3.5 bg-slate-900/30 border border-white/5 rounded-2xl space-y-1.5">
-                        <div className="flex justify-between items-center text-[9px] font-bold">
+                        <div className="flex justify-between items-center text-[9px] font-bold font-mono">
                           <span className={`${
                             not.cat === 'Critical' ? "text-red-400" :
                             not.cat === 'Warning' ? "text-yellow-400" :
                             not.cat === 'Resolved' ? "text-emerald-400" : "text-blue-400"
                           }`}>{not.cat}</span>
-                          <span className="text-slate-500 font-mono">{not.time}</span>
+                          <span className="text-slate-500">{not.time}</span>
                         </div>
                         <p className="font-bold text-white text-[11px] leading-tight">{not.title}</p>
                         <p className="text-[10px] text-slate-500 leading-normal">{not.desc}</p>
