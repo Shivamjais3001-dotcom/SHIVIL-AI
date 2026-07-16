@@ -1,6 +1,17 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { Sparkles, X } from "lucide-react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import ProtectedRoute from "./components/ProtectedRoute";
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 1,
+      refetchOnWindowFocus: false,
+    },
+  },
+});
 
 import Home from "./pages/Home";
 import Login from "./pages/LoginPage";
@@ -52,7 +63,8 @@ function App() {
   }, []);
 
   return (
-    <BrowserRouter>
+    <QueryClientProvider client={queryClient}>
+      <BrowserRouter>
       {/* Global command center shortcuts (Ctrl+K or Cmd+K) */}
       <CommandMenu />
 
@@ -79,24 +91,25 @@ function App() {
         <Route path="/" element={<Home />} />
         <Route path="/login" element={<Login />} />
 
-        <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/students" element={<StudentManagement />} />
-        <Route path="/faculty" element={<Faculty />} />
-        <Route path="/courses" element={<Courses />} />
-        <Route path="/attendance" element={<Attendance />} />
-        <Route path="/examination" element={<Examination />} />
-        <Route path="/reports" element={<Reports />} />
-        <Route path="/placements" element={<Placements />} />
-        <Route path="/fees" element={<Fees />} />
-        <Route path="/library" element={<Library />} />
-        <Route path="/hostel" element={<Hostel />} />
+        <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+        <Route path="/students" element={<ProtectedRoute><StudentManagement /></ProtectedRoute>} />
+        <Route path="/faculty" element={<ProtectedRoute><Faculty /></ProtectedRoute>} />
+        <Route path="/courses" element={<ProtectedRoute><Courses /></ProtectedRoute>} />
+        <Route path="/attendance" element={<ProtectedRoute><Attendance /></ProtectedRoute>} />
+        <Route path="/examination" element={<ProtectedRoute><Examination /></ProtectedRoute>} />
+        <Route path="/reports" element={<ProtectedRoute><Reports /></ProtectedRoute>} />
+        <Route path="/placements" element={<ProtectedRoute><Placements /></ProtectedRoute>} />
+        <Route path="/fees" element={<ProtectedRoute><Fees /></ProtectedRoute>} />
+        <Route path="/library" element={<ProtectedRoute><Library /></ProtectedRoute>} />
+        <Route path="/hostel" element={<ProtectedRoute><Hostel /></ProtectedRoute>} />
         
-        <Route path="/assistant" element={<AIAssistant />} />
-        <Route path="/workflows" element={<Workflows />} />
-        <Route path="/settings" element={<Settings />} />
-        <Route path="/design" element={<DesignTest />} />
+        <Route path="/assistant" element={<ProtectedRoute><AIAssistant /></ProtectedRoute>} />
+        <Route path="/workflows" element={<ProtectedRoute><Workflows /></ProtectedRoute>} />
+        <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+        <Route path="/design" element={<ProtectedRoute><DesignTest /></ProtectedRoute>} />
       </Routes>
     </BrowserRouter>
+  </QueryClientProvider>
   );
 }
 

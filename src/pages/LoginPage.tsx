@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { Mail, Lock, Eye, EyeOff, Sparkles, Loader2, ArrowRight } from "lucide-react";
+import { useAuth } from "../hooks/useAuth";
 
 function Login() {
   const [showPassword, setShowPassword] = useState(false);
@@ -11,8 +12,9 @@ function Login() {
   const [error, setError] = useState("");
 
   const navigate = useNavigate();
+  const { login } = useAuth();
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!email) {
@@ -33,11 +35,14 @@ function Login() {
     setError("");
     setLoading(true);
 
-    // Simulate key validation & loading latency
-    setTimeout(() => {
-      setLoading(false);
+    const success = await login(email, password);
+    setLoading(false);
+
+    if (success) {
       navigate("/dashboard");
-    }, 1800);
+    } else {
+      setError("Unauthorized access. Invalid credentials or network offline.");
+    }
   };
 
   return (

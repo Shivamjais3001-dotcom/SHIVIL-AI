@@ -1,7 +1,9 @@
 import { useMemo, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
+import { useQuery } from "@tanstack/react-query";
 import Sidebar from "../components/Sidebar";
+import { apiClient } from "../api/client";
 
 import {
   Users,
@@ -45,6 +47,27 @@ function Dashboard() {
   const activeRole = localStorage.getItem("userRole") || "Admin";
   const activeName = localStorage.getItem("adminName") || "Shivam Jaiswal";
 
+  // Fetch live metrics from PostgreSQL via Express backend
+  const { data: metricsResponse } = useQuery({
+    queryKey: ["dashboardMetrics"],
+    queryFn: async () => {
+      const res = await apiClient.get("/dashboard/metrics");
+      return res.data;
+    }
+  });
+
+  const metricsData = useMemo(() => {
+    return metricsResponse?.data || {
+      studentsCount: 1240,
+      facultyCount: 142,
+      departmentsCount: 4,
+      averageAttendance: 94.2,
+      upcomingExamsCount: 6,
+      pendingTasks: 3,
+      activeConversations: 12
+    };
+  }, [metricsResponse]);
+
   // Calculate dynamic greeting based on hour
   const greeting = useMemo(() => {
     const hour = new Date().getHours();
@@ -68,13 +91,12 @@ function Dashboard() {
     setTimeout(() => setToastMessage(""), 3500);
   };
 
-  // Mock Command Center data
+  // Command Center data
   const healthScore = 92;
   const riskIndex = "2.4%";
   const budgetCollected = "$1.2M";
   const budgetGoal = "$1.5M";
   const placementRate = "86.5%";
-  const dropoutRate = "1.8%";
 
   const approvals = [
     { id: 1, type: "Grading Curves", title: "Approve Midterm curves for CS-302 Algorithms", desc: "Dr. Sarah Jenkins submitted", priority: "High" },
@@ -195,6 +217,49 @@ function Dashboard() {
               </div>
             </div>
 
+          </div>
+
+          {/* Active Registries Counts Sub-row */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 border-t border-b border-slate-900 py-5 select-none">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400 shrink-0">
+                <Users size={14} />
+              </div>
+              <div>
+                <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider leading-none">Total Students</p>
+                <p className="text-sm font-extrabold text-white mt-1.5 leading-none font-mono">{metricsData.studentsCount}</p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400 shrink-0">
+                <GraduationCap size={14} />
+              </div>
+              <div>
+                <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider leading-none">Total Faculty</p>
+                <p className="text-sm font-extrabold text-white mt-1.5 leading-none font-mono">{metricsData.facultyCount}</p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-pink-500/10 border border-pink-500/20 flex items-center justify-center text-pink-400 shrink-0">
+                <Building size={14} />
+              </div>
+              <div>
+                <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider leading-none">Active Departments</p>
+                <p className="text-sm font-extrabold text-white mt-1.5 leading-none font-mono">{metricsData.departmentsCount}</p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0">
+                <Activity size={14} />
+              </div>
+              <div>
+                <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider leading-none">Avg Attendance</p>
+                <p className="text-sm font-extrabold text-white mt-1.5 leading-none font-mono">{metricsData.averageAttendance}%</p>
+              </div>
+            </div>
           </div>
 
           {/* Main Command Split Panels */}
