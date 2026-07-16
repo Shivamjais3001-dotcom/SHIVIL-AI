@@ -3,6 +3,7 @@ import Sidebar from "../components/Sidebar";
 import FacultyHeader from "../components/faculty/FacultyHeader";
 import FacultyTable from "../components/faculty/FacultyTable";
 import FacultyModal from "../components/faculty/FacultyModal";
+import FacultyWorkspace from "../components/faculty/FacultyWorkspace";
 import type { Faculty } from "../types/faculty";
 import { facultyService } from "../services/facultyService";
 import { AlertCircle } from "lucide-react";
@@ -15,6 +16,7 @@ function FacultyManagement() {
   const [filterDept, setFilterDept] = useState("All");
   const [showModal, setShowModal] = useState(false);
   const [editingFaculty, setEditingFaculty] = useState<Faculty | null>(null);
+  const [selectedFaculty, setSelectedFaculty] = useState<Faculty | null>(null);
 
   const activeRole = localStorage.getItem("userRole") || "Admin";
 
@@ -99,6 +101,26 @@ function FacultyManagement() {
     setShowModal(true);
   };
 
+  if (selectedFaculty) {
+    return (
+      <div className="flex min-h-screen bg-[#030712]">
+        <Sidebar />
+        <main className="flex-1 p-6 md:p-8 overflow-y-auto min-w-0">
+          <div className="max-w-7xl mx-auto">
+            <FacultyWorkspace 
+              professor={selectedFaculty} 
+              onBack={() => setSelectedFaculty(null)} 
+              onEdit={(f) => {
+                setSelectedFaculty(null);
+                handleEdit(f);
+              }} 
+            />
+          </div>
+        </main>
+      </div>
+    );
+  }
+
   return (
     <div className="flex min-h-screen bg-[#030712]">
       <Sidebar />
@@ -143,6 +165,7 @@ function FacultyManagement() {
               search={search}
               onEdit={handleEdit}
               onDelete={handleDelete}
+              onViewWorkspace={setSelectedFaculty}
             />
           )}
 

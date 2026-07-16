@@ -1,11 +1,12 @@
 import type { Faculty } from "../../types/faculty";
-import { Edit2, Trash2 } from "lucide-react";
+import { Edit2, Trash2, Sparkles } from "lucide-react";
 
 interface Props {
   faculty: Faculty[];
   search: string;
   onEdit: (faculty: Faculty) => void;
   onDelete: (id: number) => void;
+  onViewWorkspace: (faculty: Faculty) => void;
 }
 
 function FacultyTable({
@@ -13,6 +14,7 @@ function FacultyTable({
   search,
   onEdit,
   onDelete,
+  onViewWorkspace
 }: Props) {
   const filteredFaculty = faculty.filter(
     (f) =>
@@ -53,7 +55,12 @@ function FacultyTable({
                     <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-purple-600/10 to-blue-600/10 border border-purple-500/20 flex items-center justify-center font-bold text-white text-xs font-mono">
                       {f.name.replace("Dr. ", "").replace("Prof. ", "").charAt(0)}
                     </div>
-                    <span className="text-xs font-semibold text-white">{f.name}</span>
+                    <span 
+                      onClick={() => onViewWorkspace(f)}
+                      className="text-xs font-semibold text-white hover:text-blue-400 transition cursor-pointer"
+                    >
+                      {f.name}
+                    </span>
                   </div>
                 </td>
 
@@ -69,15 +76,22 @@ function FacultyTable({
                 <td className="px-6 py-4 text-right">
                   <div className="inline-flex gap-2">
                     <button
+                      onClick={() => onViewWorkspace(f)}
+                      className="p-2 rounded-lg bg-slate-900 border border-slate-800 text-purple-400 hover:text-white hover:border-purple-600/35 transition cursor-pointer"
+                      title="View Faculty Intelligence Workspace"
+                    >
+                      <Sparkles size={12} className="animate-pulse" />
+                    </button>
+                    <button
                       onClick={() => onEdit(f)}
-                      className="p-2 rounded-lg bg-slate-900 border border-slate-800 text-slate-400 hover:text-white hover:border-slate-700 transition"
+                      className="p-2 rounded-lg bg-slate-900 border border-slate-800 text-slate-400 hover:text-white hover:border-slate-700 transition cursor-pointer"
                       title="Edit details"
                     >
                       <Edit2 size={12} />
                     </button>
                     <button
                       onClick={() => onDelete(f.id)}
-                      className="p-2 rounded-lg bg-slate-900 border border-slate-800 text-red-400 hover:bg-red-500/10 hover:border-red-500/20 transition"
+                      className="p-2 rounded-lg bg-slate-900 border border-slate-800 text-red-400 hover:bg-red-500/10 hover:border-red-500/20 transition cursor-pointer"
                       title="Delete record"
                     >
                       <Trash2 size={12} />
