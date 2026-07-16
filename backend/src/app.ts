@@ -17,6 +17,7 @@ import dashboardRoutes from "./routes/dashboard.routes";
 import timetableRoutes from "./routes/timetable.routes";
 import academicRoutes from "./routes/academic.routes";
 import examinationRoutes from "./routes/examination.routes";
+import prisma from "./config/database";
 
 // Middlewares
 import { errorMiddleware } from "./middlewares/error.middleware";
@@ -50,8 +51,37 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Server check endpoint
-app.get("/health", (req, res) => {
-  res.status(200).json({ status: "healthy", timestamp: new Date() });
+app.get("/health", async (req, res) => {
+  let dbStatus = "unreachable";
+  try {
+    // Ping the database to verify connectivity
+    await prisma.$queryRaw`SELECT 1`;
+    dbStatus = "connected";
+  } catch (error) {
+    dbStatus = `error: ${(error as Error).message}`;
+  }
+
+  const memoryUsage = process.memoryUsage();
+  const uptime = process.uptime();
+
+  const healthData = {
+    status: dbStatus === "connected" ? "healthy" : "unhealthy",
+    timestamp: new Date(),
+    uptime: `${Math.floor(uptime)}s`,
+    database: dbStatus,
+    system: {
+      memoryRSS: `${Math.round(memoryUsage.rss / 1024 / 1024)} MB`,
+      heapTotal: `${Math.round(memoryUsage.heapTotal / 1024 / 1024)} MB`,
+      heapUsed: `${Math.round(memoryUsage.heapUsed / 1024 / 1024)} MB`,
+      external: `${Math.round(memoryUsage.external / 1024 / 1024)} MB`,
+    }
+  };
+
+  if (healthData.status === "healthy") {
+    res.status(200).json(healthData);
+  } else {
+    res.status(503).json(healthData);
+  }
 });
 
 // Mounting modular API routers

@@ -3,6 +3,7 @@ import { ApiError } from "../utils/api-error";
 import { CustomError } from "../utils/custom-error";
 import { sendErrorResponse } from "../utils/response";
 import { ZodError } from "zod";
+import { logger } from "../config/logger";
 
 export function errorMiddleware(
   err: any,
@@ -49,8 +50,15 @@ export function errorMiddleware(
     }
   }
 
-  // Log server-side diagnostic alert
-  console.error(`[SYSTEM ERROR] ${statusCode} - ${message}`, err);
+  // Log server-side diagnostic alert via Winston
+  logger.error(`[SYSTEM ERROR] ${statusCode} - ${message}`, {
+    statusCode,
+    message,
+    details,
+    stack: err.stack,
+    url: req.originalUrl,
+    method: req.method
+  });
 
   return sendErrorResponse(res, message, statusCode, details, err.stack);
 }

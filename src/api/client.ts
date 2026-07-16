@@ -68,12 +68,41 @@ apiClient.interceptors.response.use(
       }
     }
 
-    // 2. Offline Hybrid Fallback Layer: Intercept network connect errors
-    if (!error.response) {
-      console.warn("⚠️ SHIVIL AI: Local backend server offline. Activating hybrid offline fallback layer.");
+    // 2. Offline Hybrid Fallback Layer: Intercept network connect errors or database offline errors in dev mode
+    const isDev = import.meta.env.DEV;
+    const isDbError = error.response && (error.response.status === 500 || error.response.status === 503);
+    if (!error.response || (isDev && isDbError)) {
+      console.warn("⚠️ SHIVIL AI: Local backend or database offline. Activating hybrid offline fallback layer.");
       
       const url = originalRequest.url || "";
       const method = originalRequest.method?.toUpperCase() || "GET";
+
+      // Mock Authentication Login Fallback
+      if (url.includes("/auth/login") && method === "POST") {
+        const body = originalRequest.data ? (typeof originalRequest.data === 'string' ? JSON.parse(originalRequest.data) : originalRequest.data) : {};
+        const loginEmail = body.email || "shivamjais3001@gmail.com";
+        
+        let mockRole = "SUPER_ADMIN";
+        if (loginEmail.includes("faculty")) mockRole = "FACULTY";
+        if (loginEmail.includes("student")) mockRole = "STUDENT";
+
+        return {
+          data: {
+            success: true,
+            message: "Offline mock authentication successful",
+            data: {
+              accessToken: "mock-session-jwt-token-cosmic-2026",
+              user: {
+                id: "u-mock-99",
+                email: loginEmail,
+                role: mockRole,
+                universityId: "univ-shivil",
+                universityName: "SHIVIL AI University OS"
+              }
+            }
+          }
+        };
+      }
 
       // Match routes and return mock data in standard backend envelopes
       if (url.includes("/dashboard/metrics")) {

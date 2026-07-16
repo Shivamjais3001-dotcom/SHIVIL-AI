@@ -19,7 +19,9 @@ import {
   ClipboardList,
   ChevronLeft,
   ChevronRight,
-  Workflow
+  Workflow,
+  Star,
+  Clock
 } from "lucide-react";
 
 function Sidebar() {
@@ -39,77 +41,20 @@ function Sidebar() {
   };
 
   const menuItems = [
-    {
-      name: "Dashboard",
-      icon: <LayoutDashboard size={18} />,
-      path: "/dashboard",
-    },
-    {
-      name: "Students",
-      icon: <Users size={18} />,
-      path: "/students",
-    },
-    {
-      name: "Faculty",
-      icon: <GraduationCap size={18} />,
-      path: "/faculty",
-    },
-    {
-      name: "Courses",
-      icon: <BookOpen size={18} />,
-      path: "/courses",
-    },
-    {
-      name: "Attendance",
-      icon: <Calendar size={18} />,
-      path: "/attendance",
-    },
-    {
-      name: "Examination",
-      icon: <ClipboardList size={18} />,
-      path: "/examination",
-    },
-    {
-      name: "Reports",
-      icon: <BarChart3 size={18} />,
-      path: "/reports",
-    },
-    {
-      name: "Placements",
-      icon: <Briefcase size={18} />,
-      path: "/placements",
-    },
-    {
-      name: "Fees Ledger",
-      icon: <CreditCard size={18} />,
-      path: "/fees",
-    },
-    {
-      name: "Library",
-      icon: <Book size={18} />,
-      path: "/library",
-    },
-    {
-      name: "Hostel Ops",
-      icon: <Home size={18} />,
-      path: "/hostel",
-    },
-    {
-      name: "Workflows",
-      icon: <Workflow size={18} />,
-      path: "/workflows",
-    },
-    {
-      name: "AI Assistant",
-      icon: <Bot size={18} />,
-      path: "/assistant",
-      highlight: true,
-    },
-    {
-      name: "Settings",
-      icon: <Settings size={18} />,
-      path: "/settings",
-    },
+    { name: "Dashboard", icon: <LayoutDashboard size={16} />, path: "/dashboard", isFav: true },
+    { name: "Students", icon: <Users size={16} />, path: "/students", isFav: false },
+    { name: "Faculty", icon: <GraduationCap size={16} />, path: "/faculty", isFav: false },
+    { name: "Courses", icon: <BookOpen size={16} />, path: "/courses", isFav: false },
+    { name: "Attendance", icon: <Calendar size={16} />, path: "/attendance", isFav: false },
+    { name: "Examination", icon: <ClipboardList size={16} />, path: "/examination", isFav: true, badge: 3 },
+    { name: "Reports", icon: <BarChart3 size={16} />, path: "/reports", isFav: false },
+    { name: "Placements", icon: <Briefcase size={16} />, path: "/placements", isFav: false },
+    { name: "Fees Ledger", icon: <CreditCard size={16} />, path: "/fees", isFav: false },
+    { name: "Library", icon: <Book size={16} />, path: "/library", isFav: false },
+    { name: "Hostel Ops", icon: <Home size={16} />, path: "/hostel", isFav: false },
+    { name: "Workflows", icon: <Workflow size={16} />, path: "/workflows", isFav: true, badge: 1 },
+    { name: "AI Assistant", icon: <Bot size={16} />, path: "/assistant", highlight: true, isFav: false },
+    { name: "Settings", icon: <Settings size={16} />, path: "/settings", isFav: false },
   ];
 
   // Restructure visible routes depending on security clearance level
@@ -131,15 +76,23 @@ function Sidebar() {
     return "Admin";
   };
 
+  const favorites = filteredMenuItems.filter(item => item.isFav);
+  const others = filteredMenuItems.filter(item => !item.isFav);
+
+  const recents = [
+    { name: "Attendance Check", path: "/attendance" },
+    { name: "CSE Registries", path: "/students" }
+  ];
+
   return (
     <motion.aside 
-      animate={{ width: isCollapsed ? 80 : 256 }}
+      animate={{ width: isCollapsed ? 76 : 240 }}
       transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
       className="min-h-screen bg-[#050814]/90 border-r border-white/5 flex flex-col justify-between shrink-0 sticky top-0 h-screen overflow-y-auto select-none z-30"
     >
       <div>
         {/* Brand Header */}
-        <div className={`px-4 py-6 border-b border-white/5 flex items-center justify-between relative`}>
+        <div className="px-4 py-5 border-b border-white/5 flex items-center justify-between relative">
           {!isCollapsed ? (
             <motion.div 
               initial={{ opacity: 0 }}
@@ -167,27 +120,36 @@ function Sidebar() {
           {/* Collapse Toggle Switch */}
           <button 
             onClick={toggleCollapse}
-            className={`absolute top-1/2 -translate-y-1/2 -right-3 w-6 h-6 rounded-full bg-slate-950 border border-white/10 flex items-center justify-center text-slate-400 hover:text-white transition duration-200 cursor-pointer shadow-lg`}
+            className="absolute top-1/2 -translate-y-1/2 -right-3 w-5 h-5 rounded-full bg-slate-950 border border-white/10 flex items-center justify-center text-slate-400 hover:text-white transition duration-200 cursor-pointer shadow-lg z-50"
           >
-            {isCollapsed ? <ChevronRight size={12} /> : <ChevronLeft size={12} />}
+            {isCollapsed ? <ChevronRight size={10} /> : <ChevronLeft size={10} />}
           </button>
         </div>
 
-        {/* Navigation Menu */}
-        <nav className="p-3 space-y-1">
-          {filteredMenuItems.map((item) => (
+        {/* Favorites Section (if not collapsed) */}
+        {!isCollapsed && (
+          <div className="px-5 pt-4 pb-2">
+            <div className="flex items-center gap-1.5 text-[9px] uppercase tracking-wider font-extrabold text-slate-500">
+              <Star size={10} className="text-amber-500" />
+              <span>Favorites</span>
+            </div>
+          </div>
+        )}
+
+        <nav className="px-3.5 space-y-0.5">
+          {(isCollapsed ? filteredMenuItems : favorites).map((item) => (
             <NavLink
               key={item.name}
               to={item.path}
               className={({ isActive }) =>
-                `flex items-center gap-3.5 px-4 py-2.5 rounded-xl text-xs font-semibold tracking-tight transition-all duration-200 group relative ${
+                `flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold tracking-tight transition-all duration-200 group relative ${
                   isActive
                     ? item.highlight
                       ? "bg-gradient-to-r from-purple-900/20 to-blue-900/20 border border-purple-500/20 text-white shadow-lg"
                       : "bg-slate-900/60 border border-white/5 text-white"
                     : item.highlight
                     ? "text-purple-400 bg-purple-500/5 hover:bg-purple-500/10 hover:text-purple-300 border border-purple-500/10"
-                    : "text-slate-400 hover:bg-slate-950 hover:text-slate-200"
+                    : "text-slate-400 hover:bg-slate-900/30 hover:text-slate-200"
                 }`
               }
             >
@@ -209,10 +171,16 @@ function Sidebar() {
                     </motion.span>
                   )}
 
-                  {/* Icon CSS-based tooltip for collapsed state */}
+                  {/* Unread Counter Badge */}
+                  {item.badge !== undefined && !isCollapsed && (
+                    <span className="px-1.5 py-0.5 rounded-md bg-blue-500/10 border border-blue-500/20 text-[9px] font-bold text-blue-400 leading-none font-mono">
+                      {item.badge}
+                    </span>
+                  )}
+
                   {isCollapsed && (
-                    <span className="absolute left-full ml-4 px-2.5 py-1.5 rounded-lg border border-white/5 bg-slate-950/95 text-slate-200 text-[9px] uppercase tracking-wider font-bold opacity-0 group-hover:opacity-100 transition-opacity duration-150 shadow-2xl z-50 pointer-events-none select-none">
-                      {item.name}
+                    <span className="absolute left-full ml-4 px-2.5 py-1.5 rounded-lg border border-white/5 bg-slate-950/95 text-slate-200 text-[9px] uppercase tracking-wider font-bold opacity-0 group-hover:opacity-100 transition-opacity duration-150 shadow-2xl z-50 pointer-events-none select-none whitespace-nowrap">
+                      {item.name} {item.badge !== undefined ? `(${item.badge})` : ""}
                     </span>
                   )}
 
@@ -224,11 +192,83 @@ function Sidebar() {
             </NavLink>
           ))}
         </nav>
+
+        {/* Regular Menu Items Section (if not collapsed) */}
+        {!isCollapsed && (
+          <>
+            <div className="px-5 pt-4 pb-2">
+              <div className="flex items-center gap-1.5 text-[9px] uppercase tracking-wider font-extrabold text-slate-500">
+                <span>Modules</span>
+              </div>
+            </div>
+            <nav className="px-3.5 space-y-0.5">
+              {others.map((item) => (
+                <NavLink
+                  key={item.name}
+                  to={item.path}
+                  className={({ isActive }) =>
+                    `flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold tracking-tight transition-all duration-200 group relative ${
+                      isActive
+                        ? item.highlight
+                          ? "bg-gradient-to-r from-purple-900/20 to-blue-900/20 border border-purple-500/20 text-white shadow-lg"
+                          : "bg-slate-900/60 border border-white/5 text-white"
+                        : item.highlight
+                        ? "text-purple-400 bg-purple-500/5 hover:bg-purple-500/10 hover:text-purple-300 border border-purple-500/10"
+                        : "text-slate-400 hover:bg-slate-900/30 hover:text-slate-200"
+                    }`
+                  }
+                >
+                  {({ isActive }) => (
+                    <>
+                      <span className={`transition-colors duration-200 shrink-0 ${
+                        isActive ? "text-blue-400" : "text-slate-500 group-hover:text-slate-300"
+                      }`}>
+                        {item.icon}
+                      </span>
+                      
+                      <motion.span 
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        className="flex-1 truncate"
+                      >
+                        {item.name}
+                      </motion.span>
+
+                      {item.badge !== undefined && (
+                        <span className="px-1.5 py-0.5 rounded-md bg-blue-500/10 border border-blue-500/20 text-[9px] font-bold text-blue-400 leading-none font-mono">
+                          {item.badge}
+                        </span>
+                      )}
+                    </>
+                  )}
+                </NavLink>
+              ))}
+            </nav>
+
+            {/* Recent History List */}
+            <div className="px-5 pt-5 pb-2">
+              <div className="flex items-center gap-1.5 text-[9px] uppercase tracking-wider font-extrabold text-slate-500">
+                <Clock size={10} />
+                <span>Recents</span>
+              </div>
+            </div>
+            <div className="px-5 space-y-2">
+              {recents.map((rec, idx) => (
+                <NavLink 
+                  key={idx} 
+                  to={rec.path} 
+                  className="block text-[10px] text-slate-500 hover:text-slate-300 truncate transition duration-150 font-semibold"
+                >
+                  {rec.name}
+                </NavLink>
+              ))}
+            </div>
+          </>
+        )}
       </div>
 
       {/* Footer Profile & Logout */}
       <div className="p-3 border-t border-white/5">
-        
         {/* User Card */}
         <div className={`rounded-2xl bg-slate-950/80 border border-white/5 p-2 mb-3 flex items-center ${isCollapsed ? "justify-center" : "gap-3"}`}>
           <div className="w-7 h-7 rounded-xl bg-gradient-to-br from-blue-600 to-purple-600 flex items-center justify-center text-white text-[11px] font-extrabold font-mono shrink-0">

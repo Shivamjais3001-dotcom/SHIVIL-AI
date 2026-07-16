@@ -36,11 +36,11 @@ export const logger = winston.createLogger({
   ],
 });
 
-if (process.env.NODE_ENV !== "production") {
-  logger.add(
-    new winston.transports.Console({
-      format: consoleFormat,
-    })
-  );
-}
+// Always add console transport in Docker/production environments for standard output ingestion
+logger.add(
+  new winston.transports.Console({
+    format: consoleFormat,
+  })
+);
+
 export default logger;
