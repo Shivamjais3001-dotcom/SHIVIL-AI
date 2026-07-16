@@ -1,15 +1,14 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
+import { motion, AnimatePresence } from "framer-motion";
 import { 
   Search, 
-  Command, 
   Users, 
   GraduationCap, 
   LayoutDashboard, 
   Calendar, 
   Settings, 
   Bot, 
-  FileText,
   CornerDownLeft,
   X
 } from "lucide-react";
@@ -119,94 +118,100 @@ function CommandMenu() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [isOpen]);
 
-  if (!isOpen) return null;
-
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-      <div 
-        ref={menuRef}
-        className="relative w-full max-w-lg rounded-3xl border border-white/5 bg-slate-950 p-4 shadow-2xl overflow-hidden flex flex-col max-h-[440px]"
-      >
-        {/* Glow indicator line */}
-        <div className="absolute top-0 inset-x-0 h-[1.5px] bg-gradient-to-r from-transparent via-blue-500/40 to-transparent" />
-
-        {/* Input Bar */}
-        <div className="flex items-center gap-3 px-3 py-2 border-b border-slate-900">
-          <Search className="text-slate-500" size={18} />
-          <input
-            type="text"
-            placeholder="Type navigation, student names, or faculty..."
-            value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
-              setSelectedIndex(0);
-            }}
-            className="flex-1 bg-transparent text-xs text-white placeholder-slate-600 focus:outline-none py-1.5"
-            autoFocus
-          />
-          <kbd className="hidden sm:inline-flex items-center gap-0.5 px-2 py-1 rounded bg-slate-900 border border-slate-800 text-[10px] font-mono text-slate-500">
-            ESC
-          </kbd>
-          <button 
-            onClick={() => setIsOpen(false)}
-            className="p-1 rounded bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white transition"
+    <AnimatePresence>
+      {isOpen && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-md flex items-center justify-center p-4">
+          <motion.div 
+            ref={menuRef}
+            initial={{ opacity: 0, scale: 0.96, y: -16 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.96, y: -16 }}
+            transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+            className="relative w-full max-w-lg rounded-3xl border border-white/5 bg-slate-950/85 backdrop-blur-2xl p-4 shadow-[0_30px_70px_rgba(0,0,0,0.6)] overflow-hidden flex flex-col max-h-[440px]"
           >
-            <X size={12} />
-          </button>
-        </div>
+            {/* Glow indicator line */}
+            <div className="absolute top-0 inset-x-0 h-[1.5px] bg-gradient-to-r from-transparent via-blue-500/40 to-transparent" />
 
-        {/* Search results list */}
-        <div className="flex-1 overflow-y-auto p-2 space-y-1.5 mt-2">
-          {searchItems.length === 0 ? (
-            <p className="text-[11px] text-slate-600 text-center py-8">No terminal logs match your search.</p>
-          ) : (
-            searchItems.map((item, idx) => {
-              const isSelected = idx === selectedIndex;
-              return (
-                <div
-                  key={item.id}
-                  onClick={() => handleAction(item)}
-                  onMouseEnter={() => setSelectedIndex(idx)}
-                  className={`flex items-center justify-between px-3 py-2.5 rounded-xl cursor-pointer transition-all duration-150 ${
-                    isSelected 
-                      ? "bg-slate-900 border border-slate-850 text-white" 
-                      : "border border-transparent text-slate-400"
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <span className={isSelected ? "text-blue-400" : "text-slate-500"}>
-                      {item.icon}
-                    </span>
-                    <div className="flex items-baseline gap-2">
-                      <span className="text-xs font-semibold">{item.title}</span>
-                      <span className="text-[9px] uppercase tracking-wider text-slate-600 font-bold">
-                        {item.category}
-                      </span>
+            {/* Input Bar */}
+            <div className="flex items-center gap-3 px-3 py-2 border-b border-slate-900">
+              <Search className="text-slate-500" size={18} />
+              <input
+                type="text"
+                placeholder="Type navigation, student names, or faculty..."
+                value={search}
+                onChange={(e) => {
+                  setSearch(e.target.value);
+                  setSelectedIndex(0);
+                }}
+                className="flex-1 bg-transparent text-xs text-white placeholder-slate-600 focus:outline-none py-1.5 font-sans"
+                autoFocus
+              />
+              <kbd className="hidden sm:inline-flex items-center gap-0.5 px-2 py-1 rounded bg-slate-900 border border-slate-800 text-[10px] font-mono text-slate-500">
+                ESC
+              </kbd>
+              <button 
+                onClick={() => setIsOpen(false)}
+                className="p-1 rounded bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white transition cursor-pointer"
+              >
+                <X size={12} />
+              </button>
+            </div>
+
+            {/* Search results list */}
+            <div className="flex-1 overflow-y-auto p-2 space-y-1.5 mt-2 scrollbar-thin">
+              {searchItems.length === 0 ? (
+                <p className="text-[11px] text-slate-600 text-center py-8">No terminal logs match your search.</p>
+              ) : (
+                searchItems.map((item, idx) => {
+                  const isSelected = idx === selectedIndex;
+                  return (
+                    <div
+                      key={item.id}
+                      onClick={() => handleAction(item)}
+                      onMouseEnter={() => setSelectedIndex(idx)}
+                      className={`flex items-center justify-between px-3 py-2.5 rounded-xl cursor-pointer transition-all duration-150 ${
+                        isSelected 
+                          ? "bg-slate-900 border border-slate-850 text-white" 
+                          : "border border-transparent text-slate-400"
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className={isSelected ? "text-blue-400" : "text-slate-500"}>
+                          {item.icon}
+                        </span>
+                        <div className="flex items-baseline gap-2">
+                          <span className="text-xs font-semibold">{item.title}</span>
+                          <span className="text-[9px] uppercase tracking-wider text-slate-600 font-bold">
+                            {item.category}
+                          </span>
+                        </div>
+                      </div>
+                      {isSelected && (
+                        <span className="text-[9px] font-mono text-slate-500 flex items-center gap-0.5 uppercase">
+                          <span>Select</span>
+                          <CornerDownLeft size={10} />
+                        </span>
+                      )}
                     </div>
-                  </div>
-                  {isSelected && (
-                    <span className="text-[9px] font-mono text-slate-500 flex items-center gap-0.5 uppercase">
-                      <span>Select</span>
-                      <CornerDownLeft size={10} />
-                    </span>
-                  )}
-                </div>
-              );
-            })
-          )}
-        </div>
+                  );
+                })
+              )}
+            </div>
 
-        {/* Commands Footer instruction */}
-        <div className="border-t border-slate-900 pt-3 px-3 flex items-center justify-between text-[9px] text-slate-600 font-medium font-mono select-none">
-          <div className="flex gap-4">
-            <span>↑↓ Navigate</span>
-            <span>Enter Select</span>
-          </div>
-          <span>SHIVIL COMMAND CENTER</span>
-        </div>
+            {/* Commands Footer instruction */}
+            <div className="border-t border-slate-900 pt-3 px-3 flex items-center justify-between text-[9px] text-slate-600 font-medium font-mono select-none">
+              <div className="flex gap-4">
+                <span>↑↓ Navigate</span>
+                <span>Enter Select</span>
+              </div>
+              <span>SHIVIL COMMAND CENTER</span>
+            </div>
 
-      </div>
-    </div>
+          </motion.div>
+        </div>
+      )}
+    </AnimatePresence>
   );
 }
 
