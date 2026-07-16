@@ -1,14 +1,15 @@
 import type { Student } from "../../types/student";
-import { Edit2, Trash2, ShieldAlert } from "lucide-react";
+import { Edit2, Trash2, ShieldAlert, Sparkles } from "lucide-react";
 
 interface Props {
   students: Student[];
   search: string;
   onEdit: (student: Student) => void;
   onDelete: (id: number) => void;
+  onViewWorkspace: (student: Student) => void;
 }
 
-function StudentTable({ students, search, onEdit, onDelete }: Props) {
+function StudentTable({ students, search, onEdit, onDelete, onViewWorkspace }: Props) {
   return (
     <div className="rounded-3xl border border-white/5 bg-slate-950/40 overflow-hidden shadow-2xl overflow-x-auto">
       <table className="w-full text-left border-collapse">
@@ -43,7 +44,12 @@ function StudentTable({ students, search, onEdit, onDelete }: Props) {
                     <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-blue-600/10 to-purple-600/10 border border-blue-500/20 flex items-center justify-center font-bold text-white text-xs font-mono">
                       {student.name.charAt(0)}
                     </div>
-                    <span className="text-xs font-semibold text-white">{student.name}</span>
+                    <span 
+                      onClick={() => onViewWorkspace(student)}
+                      className="text-xs font-semibold text-white hover:text-blue-400 transition cursor-pointer"
+                    >
+                      {student.name}
+                    </span>
                   </div>
                 </td>
 
@@ -77,15 +83,22 @@ function StudentTable({ students, search, onEdit, onDelete }: Props) {
                 <td className="px-6 py-4 text-right">
                   <div className="inline-flex gap-2">
                     <button
+                      onClick={() => onViewWorkspace(student)}
+                      className="p-2 rounded-lg bg-slate-900 border border-slate-800 text-purple-400 hover:text-white hover:border-purple-600/35 transition cursor-pointer"
+                      title="View Student Intelligence Workspace"
+                    >
+                      <Sparkles size={12} className="animate-pulse" />
+                    </button>
+                    <button
                       onClick={() => onEdit(student)}
-                      className="p-2 rounded-lg bg-slate-900 border border-slate-800 text-slate-400 hover:text-white hover:border-slate-700 transition"
+                      className="p-2 rounded-lg bg-slate-900 border border-slate-800 text-slate-400 hover:text-white hover:border-slate-700 transition cursor-pointer"
                       title="Edit student"
                     >
                       <Edit2 size={12} />
                     </button>
                     <button
                       onClick={() => onDelete(student.id!)}
-                      className="p-2 rounded-lg bg-slate-900 border border-slate-800 text-red-400 hover:bg-red-500/10 hover:border-red-500/20 transition"
+                      className="p-2 rounded-lg bg-slate-900 border border-slate-800 text-red-400 hover:bg-red-500/10 hover:border-red-500/20 transition cursor-pointer"
                       title="Delete record"
                     >
                       <Trash2 size={12} />

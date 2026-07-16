@@ -10,7 +10,11 @@ import {
   Settings, 
   Bot, 
   CornerDownLeft,
-  X
+  X,
+  BookOpen,
+  FileSpreadsheet,
+  Terminal,
+  Activity
 } from "lucide-react";
 import type { Student } from "../types/student";
 import type { Faculty } from "../types/faculty";
@@ -37,10 +41,11 @@ function CommandMenu() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
-  // Fetch search items from local storage databases
+  // Fetch search items from local storage databases and catalogs
   const searchItems = (() => {
     const students: Student[] = JSON.parse(localStorage.getItem("students") || "[]");
     const faculty: Faculty[] = JSON.parse(localStorage.getItem("faculty") || "[]");
+    const courses = JSON.parse(localStorage.getItem("courses") || "[]");
 
     const navigationLinks = [
       { id: "nav-dash", category: "Navigation", title: "Go to Dashboard", path: "/dashboard", icon: <LayoutDashboard size={14} /> },
@@ -67,9 +72,26 @@ function CommandMenu() {
       icon: <GraduationCap size={14} className="text-purple-400" />
     }));
 
-    const all = [...navigationLinks, ...studentItems, ...facultyItems];
+    const courseItems = [
+      { id: "course-1", category: "Courses", title: "CS-302 Advanced Algorithms", path: "/courses", icon: <BookOpen size={14} className="text-pink-400" /> },
+      { id: "course-2", category: "Courses", title: "IT-302 Cloud Architectures", path: "/courses", icon: <BookOpen size={14} className="text-pink-400" /> },
+      { id: "course-3", category: "Courses", title: "CS-101 Artificial Intelligence", path: "/courses", icon: <BookOpen size={14} className="text-pink-400" /> }
+    ];
 
-    if (!search.trim()) return all.slice(0, 7); // Show default entries if search empty
+    const reportItems = [
+      { id: "rep-1", category: "Reports", title: "shortages_audit_Q3.xlsx", path: "/reports", icon: <FileSpreadsheet size={14} className="text-emerald-400" /> },
+      { id: "rep-2", category: "Reports", title: "faculty_teaching_allocations.pdf", path: "/reports", icon: <FileSpreadsheet size={14} className="text-emerald-400" /> }
+    ];
+
+    const aiCommands = [
+      { id: "ai-cmd-1", category: "AI Actions", title: "Ask AI for attendance warning report", path: "/assistant", icon: <Terminal size={14} className="text-amber-400" /> },
+      { id: "ai-cmd-2", category: "AI Actions", title: "Check faculty workloads balance", path: "/assistant", icon: <Terminal size={14} className="text-amber-400" /> },
+      { id: "ai-cmd-3", category: "AI Actions", title: "Calculate projected grading curves", path: "/assistant", icon: <Terminal size={14} className="text-amber-400" /> }
+    ];
+
+    const all = [...navigationLinks, ...studentItems, ...facultyItems, ...courseItems, ...reportItems, ...aiCommands];
+
+    if (!search.trim()) return all.slice(0, 8); // Show default entries if search empty
 
     return all.filter(item => 
       item.title.toLowerCase().includes(search.toLowerCase()) ||
@@ -138,7 +160,7 @@ function CommandMenu() {
               <Search className="text-slate-500" size={18} />
               <input
                 type="text"
-                placeholder="Type navigation, student names, or faculty..."
+                placeholder="Search students, courses, actions (Ctrl+K)..."
                 value={search}
                 onChange={(e) => {
                   setSearch(e.target.value);
@@ -161,7 +183,7 @@ function CommandMenu() {
             {/* Search results list */}
             <div className="flex-1 overflow-y-auto p-2 space-y-1.5 mt-2 scrollbar-thin">
               {searchItems.length === 0 ? (
-                <p className="text-[11px] text-slate-600 text-center py-8">No terminal logs match your search.</p>
+                <p className="text-[11px] text-slate-600 text-center py-8">No matching records found.</p>
               ) : (
                 searchItems.map((item, idx) => {
                   const isSelected = idx === selectedIndex;

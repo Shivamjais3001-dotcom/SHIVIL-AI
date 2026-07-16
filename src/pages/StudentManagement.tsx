@@ -3,6 +3,7 @@ import Sidebar from "../components/Sidebar";
 import StudentHeader from "../components/students/StudentHeader";
 import StudentTable from "../components/students/StudentTable";
 import StudentModal from "../components/students/StudentModal";
+import StudentWorkspace from "../components/students/StudentWorkspace";
 import type { Student } from "../types/student";
 import { studentService } from "../services/studentService";
 import { AlertCircle } from "lucide-react";
@@ -15,6 +16,7 @@ function StudentManagement() {
   const [filterBranch, setFilterBranch] = useState("All");
   const [showModal, setShowModal] = useState(false);
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
+  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
 
   const activeRole = localStorage.getItem("userRole") || "Admin";
 
@@ -100,6 +102,26 @@ function StudentManagement() {
     setShowModal(true);
   };
 
+  if (selectedStudent) {
+    return (
+      <div className="flex min-h-screen bg-[#030712]">
+        <Sidebar />
+        <main className="flex-1 p-6 md:p-8 overflow-y-auto min-w-0">
+          <div className="max-w-7xl mx-auto">
+            <StudentWorkspace 
+              student={selectedStudent} 
+              onBack={() => setSelectedStudent(null)} 
+              onEdit={(s) => {
+                setSelectedStudent(null);
+                handleEdit(s);
+              }} 
+            />
+          </div>
+        </main>
+      </div>
+    );
+  }
+
   return (
     <div className="flex min-h-screen bg-[#030712]">
       <Sidebar />
@@ -144,6 +166,7 @@ function StudentManagement() {
               search={search}
               onEdit={handleEdit}
               onDelete={handleDelete}
+              onViewWorkspace={setSelectedStudent}
             />
           )}
 
