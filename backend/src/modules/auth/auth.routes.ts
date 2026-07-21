@@ -13,6 +13,8 @@ import {
   changePasswordSchema
 } from "./auth.validator";
 
+import { SignupSchema, ResendVerificationSchema, EmailVerificationSchema } from "../../common/validation/schemas/auth.schemas";
+
 const router = Router();
 const authController = new AuthController();
 
@@ -30,6 +32,9 @@ const authLimiter = rateLimit({
     errors: { code: "TOO_MANY_REQUESTS", retryAfter: "15m" }
   }
 });
+
+// Production Public Signup Route
+router.post("/signup", authLimiter, validate(SignupSchema), authController.signup);
 
 // Open Tenancy Setup (allows initial university & admin registration)
 router.post("/register-university", validate(registerUniversitySchema), authController.registerUniversity);
@@ -51,8 +56,9 @@ router.post("/logout", authController.logout);
 // Verification & Recovery Flows with rate limits
 router.post("/forgot-password", authLimiter, validate(forgotPasswordSchema), authController.forgotPassword);
 router.post("/reset-password", authLimiter, validate(resetPasswordSchema), authController.resetPassword);
-router.post("/verify-email", authController.verifyEmail);
-router.get("/verify-email", authController.verifyEmail); // Supports link clicks from mailers
+router.post("/verify-email", validate(EmailVerificationSchema), authController.verifyEmail);
+router.get("/verify-email", validate(EmailVerificationSchema), authController.verifyEmail); // Supports link clicks from mailers
+router.post("/resend-verification", authLimiter, validate(ResendVerificationSchema), authController.resendVerification);
 
 // Authenticated Account management
 router.post(

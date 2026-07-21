@@ -1,20 +1,266 @@
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import { UserRepository } from "../../repositories/user.repository";
-import { signAccessToken, signRefreshToken, verifyRefreshToken, TokenPayload } from "../../utils/jwt";
+import { PasswordService } from "./services/password.service";
+import { TokenService } from "./services/token.service";
+import { EmailService } from "./services/email.service";
+import { JwtService } from "./services/jwt.service";
+import { SignupInput, ResendVerificationInput } from "../../common/validation/schemas/auth.schemas";
+import { TransactionHelper } from "../../database/utils/transaction.util";
+import { AppError } from "../../common/errors/AppError";
 import { ApiError } from "../../utils/api-error";
+import { signAccessToken, signRefreshToken, verifyRefreshToken, TokenPayload } from "../../utils/jwt";
+import { Role as PrismaRole } from "@prisma/client";
 import { Role } from "../../types/role";
 
-// Cryptographic token helper to prevent plaintext exposure in Database
 function hashToken(token: string): string {
   return crypto.createHash("sha256").update(token).digest("hex");
 }
 
-export class AuthService {
-  constructor(private readonly userRepository: UserRepository = new UserRepository()) {}
+export interface SignupContext {
+  ipAddress?: string;
+  userAgent?: string;
+  requestId?: string;
+}
 
-  // --- UNIVERSITY & ADMIN REGISTRATION (TENANCY SEPARATION) ---
+export interface SignupResponseDto {
+  user: {
+    id: string;
+    email: string;
+    role: string;
+    isVerified: boolean;
+    status: string;
+    universityId: string | null;
+    createdAt: Date;
+  };
+  message: string;
+}
+
+export class AuthService {
+  constructor(
+    private readonly userRepository: UserRepository = new UserRepository(),
+    private readonly passwordService: PasswordService = new PasswordService(),
+    private readonly tokenService: TokenService = new TokenService(),
+    private readonly emailService: EmailService = new EmailService(),
+    private readonly jwtService: JwtService = new JwtService()
+  ) {}
+
+  /**
+   * Enterprise Production Signup Service
+   */
+  async signup(data: SignupInput, context?: SignupContext): Promise<SignupResponseDto> {
+    const normalizedEmail = data.email.trim().toLowerCase();
+
+    // 1. Check for Duplicate Email (Prevent Duplicate Registrations)
+    const existingUser = await this.userRepository.findByEmail(normalizedEmail);
+    if (existingUser) {
+      throw new AppError("An account with this email address already exists.", 409);
+    }
+
+    // 2. Validate Password Security Policy
+    const policyResult = this.passwordService.validatePolicy(data.password);
+    if (!policyResult.isValid) {
+      throw new AppError(`Password validation failed: ${policyResult.errors.join(" ")}`, 400);
+    }
+
+    // 3. Hash Password securely via PasswordService
+    const passwordHash = await this.passwordService.hash(data.password);
+
+    // 4. Generate Email Verification Token Pair (Raw + Hashed)
+    const { rawToken, hashedToken } = this.tokenService.generateRandomToken();
+    const verificationExpiry = this.tokenService.calculateExpiry(24);
+
+    // 5. Execute Atomic Database Writes inside Prisma Transaction
+    const createdUser = await TransactionHelper.runInTransaction(async (tx) => {
+      const user = await this.userRepository.create(
+        {
+          email: normalizedEmail,
+          passwordHash,
+          role: data.role as PrismaRole,
+          universityId: data.universityId,
+        },
+        tx
+      );
+
+      await this.userRepository.assignRole(
+        {
+          userId: user.id,
+          roleCode: data.role,
+        },
+        tx
+      );
+
+      await this.userRepository.createEmailVerification(
+        {
+          userId: user.id,
+          token: hashedToken,
+          expiresAt: verificationExpiry,
+        },
+        tx
+      );
+
+      await this.userRepository.createAuditLog(
+        {
+          action: "USER_REGISTERED",
+          userId: user.id,
+          ipAddress: context?.ipAddress,
+          details: {
+            requestId: context?.requestId,
+            role: data.role,
+            universityId: data.universityId || null,
+          },
+        },
+        tx
+      );
+
+      return user;
+    });
+
+    // 6. Queue Verification Email via EmailService Abstraction (Outside DB Transaction)
+    await this.emailService.sendVerificationEmail(createdUser.email, rawToken);
+
+    // 7. Return Sanitized Response DTO
+    return {
+      user: {
+        id: createdUser.id,
+        email: createdUser.email,
+        role: createdUser.role,
+        isVerified: createdUser.isVerified,
+        status: createdUser.status,
+        universityId: createdUser.universityId,
+        createdAt: createdUser.createdAt,
+      },
+      message: "Registration successful. Please check your email to verify your account.",
+    };
+  }
+
+  /**
+   * Production Email Verification Service
+   */
+  async verifyEmail(token: string, context?: SignupContext): Promise<{ message: string }> {
+    if (!token || typeof token !== "string") {
+      throw new AppError("Verification token parameter is missing or invalid.", 400);
+    }
+
+    const hashedToken = this.tokenService.hashToken(token);
+    const verificationRecord = await this.userRepository.findEmailVerificationByToken(hashedToken);
+
+    if (!verificationRecord) {
+      await this.userRepository.createAuditLog({
+        action: "USER_EMAIL_VERIFICATION_FAILED",
+        ipAddress: context?.ipAddress,
+        details: { reason: "TOKEN_NOT_FOUND", requestId: context?.requestId },
+      });
+      throw new AppError("Invalid or expired verification token.", 400);
+    }
+
+    if (verificationRecord.usedAt || (verificationRecord as any).status === "REVOKED") {
+      await this.userRepository.createAuditLog({
+        action: "USER_EMAIL_VERIFICATION_FAILED",
+        userId: verificationRecord.userId,
+        ipAddress: context?.ipAddress,
+        details: { reason: "TOKEN_ALREADY_USED_OR_REVOKED", requestId: context?.requestId },
+      });
+      throw new AppError("This verification token has already been used or revoked.", 400);
+    }
+
+    if (this.tokenService.isExpired(verificationRecord.expiresAt)) {
+      await this.userRepository.createAuditLog({
+        action: "USER_EMAIL_VERIFICATION_FAILED",
+        userId: verificationRecord.userId,
+        ipAddress: context?.ipAddress,
+        details: { reason: "TOKEN_EXPIRED", requestId: context?.requestId },
+      });
+      throw new AppError("Verification token has expired. Please request a new verification email.", 400);
+    }
+
+    const user = await this.userRepository.findById(verificationRecord.userId);
+    if (!user) {
+      throw new AppError("Associated user account not found.", 404);
+    }
+
+    if (user.isVerified) {
+      await this.userRepository.markEmailVerificationUsed(hashedToken);
+      return { message: "Email address is already verified." };
+    }
+
+    // Atomic Verification Update in Transaction
+    await TransactionHelper.runInTransaction(async (tx) => {
+      await this.userRepository.update(user.id, { isVerified: true, status: "ACTIVE" }, tx);
+      await this.userRepository.markEmailVerificationUsed(hashedToken, tx);
+      await this.userRepository.createAuditLog(
+        {
+          action: "USER_EMAIL_VERIFIED_SUCCESS",
+          userId: user.id,
+          ipAddress: context?.ipAddress,
+          details: { requestId: context?.requestId },
+        },
+        tx
+      );
+    });
+
+    return { message: "Email address verified successfully. You may now sign in." };
+  }
+
+  /**
+   * Production Resend Verification Email Service (Prevents Email Enumeration)
+   */
+  async resendVerification(data: ResendVerificationInput, context?: SignupContext): Promise<{ message: string }> {
+    const normalizedEmail = data.email.trim().toLowerCase();
+    const genericResponseMessage = "If an unverified account exists for this email, a new verification link has been sent.";
+
+    const user = await this.userRepository.findByEmail(normalizedEmail);
+
+    // Anti-Enumeration: If user doesn't exist or is already verified, return generic success message
+    if (!user || user.isVerified) {
+      if (user?.isVerified) {
+        await this.userRepository.createAuditLog({
+          action: "USER_VERIFICATION_RESEND_SKIPPED",
+          userId: user.id,
+          ipAddress: context?.ipAddress,
+          details: { reason: "ALREADY_VERIFIED", requestId: context?.requestId },
+        });
+      }
+      return { message: genericResponseMessage };
+    }
+
+    // Invalidate prior active verification tokens
+    await this.userRepository.invalidateActiveEmailVerifications(user.id);
+
+    // Generate new token pair
+    const { rawToken, hashedToken } = this.tokenService.generateRandomToken();
+    const verificationExpiry = this.tokenService.calculateExpiry(24);
+
+    await TransactionHelper.runInTransaction(async (tx) => {
+      await this.userRepository.createEmailVerification(
+        {
+          userId: user.id,
+          token: hashedToken,
+          expiresAt: verificationExpiry,
+        },
+        tx
+      );
+
+      await this.userRepository.createAuditLog(
+        {
+          action: "USER_VERIFICATION_RESENT",
+          userId: user.id,
+          ipAddress: context?.ipAddress,
+          details: { requestId: context?.requestId },
+        },
+        tx
+      );
+    });
+
+    // Queue email dispatch outside transaction
+    await this.emailService.sendVerificationEmail(user.email, rawToken);
+
+    return { message: genericResponseMessage };
+  }
+
+  // --- UNIVERSITY & ADMIN REGISTRATION ---
   async registerUniversity(data: { name: string; domain: string; adminEmail: string; adminPassword?: string }) {
+    const normalizedEmail = data.adminEmail.trim().toLowerCase();
     const existingName = await this.userRepository.findUniversityByName(data.name);
     if (existingName) {
       throw ApiError.conflict("A university with this name is already registered.");
@@ -25,7 +271,7 @@ export class AuthService {
       throw ApiError.conflict("A university with this domain is already registered.");
     }
 
-    const existingUser = await this.userRepository.findByEmail(data.adminEmail);
+    const existingUser = await this.userRepository.findByEmail(normalizedEmail);
     if (existingUser) {
       throw ApiError.conflict("An account with this email address already exists.");
     }
@@ -35,19 +281,16 @@ export class AuthService {
       domain: data.domain
     });
 
-    const passwordHash = await bcrypt.hash(data.adminPassword || "DefaultAdmin123!", 12);
+    const passwordHash = await this.passwordService.hash(data.adminPassword || "DefaultAdmin123!");
     const adminUser = await this.userRepository.create({
-      email: data.adminEmail,
+      email: normalizedEmail,
       passwordHash,
-      role: "UNIVERSITY_ADMIN",
+      role: "UNIVERSITY_ADMIN" as PrismaRole,
       universityId: university.id
     });
 
-    // Create & hash verification token
-    const rawToken = crypto.randomBytes(32).toString("hex");
-    const hashedToken = hashToken(rawToken);
-    const expiresAt = new Date();
-    expiresAt.setHours(expiresAt.getHours() + 24);
+    const { rawToken, hashedToken } = this.tokenService.generateRandomToken();
+    const expiresAt = this.tokenService.calculateExpiry(24);
 
     await this.userRepository.createEmailVerification({
       userId: adminUser.id,
@@ -55,7 +298,7 @@ export class AuthService {
       expiresAt
     });
 
-    console.log(`[MAILER] Verification link for ${data.adminEmail}: http://localhost:5000/api/v1/auth/verify-email?token=${rawToken}`);
+    await this.emailService.sendVerificationEmail(adminUser.email, rawToken);
 
     await this.userRepository.createAuditLog({
       action: "UNIVERSITY_REGISTERED",
@@ -75,28 +318,27 @@ export class AuthService {
   }
 
   async registerAdmin(data: { email: string; passwordHash: string; role: Role; universityId: string }) {
+    const normalizedEmail = data.email.trim().toLowerCase();
     const university = await this.userRepository.findUniversityById(data.universityId);
     if (!university) {
       throw ApiError.notFound("Target university tenant not found.");
     }
 
-    const existingUser = await this.userRepository.findByEmail(data.email);
+    const existingUser = await this.userRepository.findByEmail(normalizedEmail);
     if (existingUser) {
       throw ApiError.conflict("A user with this email address already exists.");
     }
 
-    const passwordHash = await bcrypt.hash(data.passwordHash, 12);
+    const passwordHash = await this.passwordService.hash(data.passwordHash);
     const user = await this.userRepository.create({
-      email: data.email,
+      email: normalizedEmail,
       passwordHash,
-      role: data.role,
+      role: data.role as PrismaRole,
       universityId: data.universityId
     });
 
-    const rawToken = crypto.randomBytes(32).toString("hex");
-    const hashedToken = hashToken(rawToken);
-    const expiresAt = new Date();
-    expiresAt.setHours(expiresAt.getHours() + 24);
+    const { rawToken, hashedToken } = this.tokenService.generateRandomToken();
+    const expiresAt = this.tokenService.calculateExpiry(24);
 
     await this.userRepository.createEmailVerification({
       userId: user.id,
@@ -104,7 +346,7 @@ export class AuthService {
       expiresAt
     });
 
-    console.log(`[MAILER] Verification link for ${data.email}: http://localhost:5000/api/v1/auth/verify-email?token=${rawToken}`);
+    await this.emailService.sendVerificationEmail(user.email, rawToken);
 
     await this.userRepository.createAuditLog({
       action: "USER_REGISTERED",
@@ -123,12 +365,13 @@ export class AuthService {
 
   // --- LOGIN ---
   async login(data: { email: string; passwordHash: string; ipAddress?: string; userAgent?: string }) {
-    const user = await this.userRepository.findByEmail(data.email);
+    const normalizedEmail = data.email.trim().toLowerCase();
+    const user = await this.userRepository.findByEmail(normalizedEmail);
     if (!user) {
       throw ApiError.unauthorized("Incorrect email or password credentials.");
     }
 
-    const passwordMatch = await bcrypt.compare(data.passwordHash, user.passwordHash);
+    const passwordMatch = await this.passwordService.verify(data.passwordHash, user.passwordHash);
     if (!passwordMatch) {
       throw ApiError.unauthorized("Incorrect email or password credentials.");
     }
@@ -241,16 +484,15 @@ export class AuthService {
 
   // --- FORGOT & RESET PASSWORD ---
   async forgotPassword(email: string) {
-    const user = await this.userRepository.findByEmail(email);
+    const normalizedEmail = email.trim().toLowerCase();
+    const user = await this.userRepository.findByEmail(normalizedEmail);
     if (!user) {
       console.log(`[SECURITY] Forgot password requested for non-existent email: ${email}`);
       return;
     }
 
-    const rawToken = crypto.randomBytes(32).toString("hex");
-    const hashedToken = hashToken(rawToken);
-    const expiresAt = new Date();
-    expiresAt.setHours(expiresAt.getHours() + 1);
+    const { rawToken, hashedToken } = this.tokenService.generateRandomToken();
+    const expiresAt = this.tokenService.calculateExpiry(1);
 
     await this.userRepository.createPasswordReset({
       userId: user.id,
@@ -258,7 +500,7 @@ export class AuthService {
       expiresAt
     });
 
-    console.log(`[MAILER] Password reset link for ${email}: http://localhost:5000/api/v1/auth/reset-password?token=${rawToken}`);
+    await this.emailService.sendPasswordResetEmail(user.email, rawToken);
 
     await this.userRepository.createAuditLog({
       action: "USER_FORGOT_PASSWORD_REQUEST",
@@ -281,7 +523,7 @@ export class AuthService {
       throw ApiError.badRequest("This password reset token has expired.");
     }
 
-    const passwordHash = await bcrypt.hash(newPasswordHash, 12);
+    const passwordHash = await this.passwordService.hash(newPasswordHash);
     await this.userRepository.update(resetRecord.userId, { passwordHash });
     await this.userRepository.markPasswordResetUsed(hashedToken);
 
@@ -293,31 +535,6 @@ export class AuthService {
     });
   }
 
-  // --- EMAIL VERIFICATION ---
-  async verifyEmail(token: string) {
-    const hashedToken = hashToken(token);
-    const verificationRecord = await this.userRepository.findEmailVerificationByToken(hashedToken);
-    if (!verificationRecord) {
-      throw ApiError.unauthorized("Invalid email verification token.");
-    }
-
-    if (verificationRecord.usedAt) {
-      throw ApiError.badRequest("This verification token has already been used.");
-    }
-
-    if (new Date() > verificationRecord.expiresAt) {
-      throw ApiError.badRequest("This verification token has expired.");
-    }
-
-    await this.userRepository.update(verificationRecord.userId, { isVerified: true });
-    await this.userRepository.markEmailVerificationUsed(hashedToken);
-
-    await this.userRepository.createAuditLog({
-      action: "USER_EMAIL_VERIFIED_SUCCESS",
-      userId: verificationRecord.userId
-    });
-  }
-
   // --- CHANGE PASSWORD ---
   async changePassword(userId: string, data: { oldPasswordHash: string; newPasswordHash: string }) {
     const user = await this.userRepository.findById(userId);
@@ -325,12 +542,12 @@ export class AuthService {
       throw ApiError.notFound("User account not found.");
     }
 
-    const passwordMatch = await bcrypt.compare(data.oldPasswordHash, user.passwordHash);
+    const passwordMatch = await this.passwordService.verify(data.oldPasswordHash, user.passwordHash);
     if (!passwordMatch) {
       throw ApiError.unauthorized("Invalid original password credentials.");
     }
 
-    const passwordHash = await bcrypt.hash(data.newPasswordHash, 12);
+    const passwordHash = await this.passwordService.hash(data.newPasswordHash);
     await this.userRepository.update(userId, { passwordHash });
 
     await this.userRepository.deleteSessionsByUserId(userId);
@@ -344,7 +561,7 @@ export class AuthService {
   // --- SESSION AUDITING & REVOCATION ---
   async getSessions(userId: string) {
     const sessions = await this.userRepository.findSessionsByUserId(userId);
-    return sessions.map(s => ({
+    return sessions.map((s: any) => ({
       id: s.id,
       ipAddress: s.ipAddress,
       userAgent: s.userAgent,
@@ -371,7 +588,7 @@ export class AuthService {
   // --- API KEY SERVICE ---
   async getApiKeys(userId: string) {
     const keys = await this.userRepository.findApiKeysByUserId(userId);
-    return keys.map((k) => ({
+    return keys.map((k: any) => ({
       id: k.id,
       name: k.name,
       createdAt: k.createdAt,
@@ -393,7 +610,7 @@ export class AuthService {
     return {
       id: apiKey.id,
       name: apiKey.name,
-      apiKey: rawKey, // Expose raw key only ONCE at creation
+      apiKey: rawKey,
       createdAt: apiKey.createdAt
     };
   }

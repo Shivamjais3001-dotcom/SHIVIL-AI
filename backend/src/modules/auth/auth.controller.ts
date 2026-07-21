@@ -7,6 +7,24 @@ import { ApiError } from "../../utils/api-error";
 const authService = new AuthService();
 
 export class AuthController {
+  async signup(req: Request, res: Response, next: NextFunction) {
+    try {
+      const ipAddress = req.ip || (req.headers["x-forwarded-for"] as string) || undefined;
+      const userAgent = req.headers["user-agent"] || undefined;
+      const requestId = (req as any).id || (req.headers["x-request-id"] as string) || undefined;
+
+      const result = await authService.signup(req.body, {
+        ipAddress,
+        userAgent,
+        requestId,
+      });
+
+      return sendSuccessResponse(res, result.user, result.message, 201);
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async registerUniversity(req: Request, res: Response, next: NextFunction) {
     try {
       const { name, domain, adminEmail, adminPassword } = req.body;
@@ -169,18 +187,23 @@ export class AuthController {
   async verifyEmail(req: Request, res: Response, next: NextFunction) {
     try {
       const token = (req.body.token || req.query.token) as string;
-      if (!token) {
-        return res.status(400).json({
-          success: false,
-          message: "Verification token parameter is missing.",
-          data: null,
-          meta: null,
-          errors: { message: "Token is required" }
-        });
-      }
+      const ipAddress = req.ip || (req.headers["x-forwarded-for"] as string) || undefined;
+      const requestId = (req as any).id || (req.headers["x-request-id"] as string) || undefined;
 
-      await authService.verifyEmail(token);
-      return sendSuccessResponse(res, null, "Email address has been successfully verified.");
+      const result = await authService.verifyEmail(token, { ipAddress, requestId });
+      return sendSuccessResponse(res, null, result.message);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async resendVerification(req: Request, res: Response, next: NextFunction) {
+    try {
+      const ipAddress = req.ip || (req.headers["x-forwarded-for"] as string) || undefined;
+      const requestId = (req as any).id || (req.headers["x-request-id"] as string) || undefined;
+
+      const result = await authService.resendVerification(req.body, { ipAddress, requestId });
+      return sendSuccessResponse(res, null, result.message);
     } catch (error) {
       next(error);
     }
