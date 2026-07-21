@@ -1,9 +1,9 @@
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
-import { UserRepository } from "../repositories/user.repository";
-import { signAccessToken, signRefreshToken, verifyRefreshToken, TokenPayload } from "../utils/jwt";
-import { ApiError } from "../utils/api-error";
-import { Role } from "../types/role";
+import { UserRepository } from "../../repositories/user.repository";
+import { signAccessToken, signRefreshToken, verifyRefreshToken, TokenPayload } from "../../utils/jwt";
+import { ApiError } from "../../utils/api-error";
+import { Role } from "../../types/role";
 
 // Cryptographic token helper to prevent plaintext exposure in Database
 function hashToken(token: string): string {

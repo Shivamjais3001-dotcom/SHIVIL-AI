@@ -60,7 +60,7 @@ export class UserRepository {
     });
   }
 
-  // --- SESSION (JWT REFRESH TOKENS) METHODS ---
+  // --- SESSION & REFRESH TOKEN METHODS ---
   async createSession(data: {
     refreshToken: string;
     userId: string;
@@ -117,6 +117,7 @@ export class UserRepository {
     });
   }
 
+  // --- API KEY METHODS ---
   async findApiKeyById(id: string) {
     return prisma.apiKey.findUnique({
       where: { id }
@@ -139,7 +140,11 @@ export class UserRepository {
   // --- VERIFICATIONS & RESETS METHODS ---
   async createPasswordReset(data: { userId: string; token: string; expiresAt: Date }) {
     return prisma.passwordReset.create({
-      data
+      data: {
+        userId: data.userId,
+        token: data.token,
+        expiresAt: data.expiresAt
+      }
     });
   }
 
@@ -152,13 +157,17 @@ export class UserRepository {
   async markPasswordResetUsed(token: string) {
     return prisma.passwordReset.update({
       where: { token },
-      data: { usedAt: new Date() }
+      data: { usedAt: new Date(), status: "USED" }
     });
   }
 
   async createEmailVerification(data: { userId: string; token: string; expiresAt: Date }) {
     return prisma.emailVerification.create({
-      data
+      data: {
+        userId: data.userId,
+        token: data.token,
+        expiresAt: data.expiresAt
+      }
     });
   }
 
@@ -171,11 +180,10 @@ export class UserRepository {
   async markEmailVerificationUsed(token: string) {
     return prisma.emailVerification.update({
       where: { token },
-      data: { usedAt: new Date() }
+      data: { usedAt: new Date(), status: "USED" }
     });
   }
 
-  // --- API KEY (FUTURE LLM / INTEGRATION) METHODS ---
   async findApiKey(key: string) {
     return prisma.apiKey.findUnique({
       where: { key },

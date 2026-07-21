@@ -46,13 +46,13 @@ function CourseTable({
                 <td className="px-6 py-4">
                   <div className="flex items-center gap-3">
                     <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-600/10 to-teal-600/10 border border-emerald-500/20 flex items-center justify-center font-bold text-emerald-400 text-xs font-mono">
-                      {course.courseCode.substring(0, 2)}
+                      {(course.courseCode || (course as any).code || "CS").substring(0, 2)}
                     </div>
                     <span 
                       onClick={() => onViewWorkspace(course)}
                       className="text-xs font-bold text-white font-mono hover:text-blue-400 transition cursor-pointer"
                     >
-                      {course.courseCode}
+                      {course.courseCode || (course as any).code || "N/A"}
                     </span>
                   </div>
                 </td>
@@ -62,7 +62,7 @@ function CourseTable({
                     onClick={() => onViewWorkspace(course)}
                     className="hover:text-blue-400 transition cursor-pointer"
                   >
-                    {course.courseName}
+                    {course.courseName || (course as any).name || "Untitled Course"}
                   </span>
                 </td>
 

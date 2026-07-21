@@ -1,17 +1,15 @@
-export class CustomError extends Error {
-  public readonly statusCode: number;
+import { AppError as CentralAppError } from "../common/errors/AppError";
+
+export class CustomError extends CentralAppError {
   public readonly details: any;
 
   constructor(message: string, statusCode: number = 500, details: any = null) {
-    super(message);
-    this.statusCode = statusCode;
+    super(message, statusCode, true);
     this.details = details;
-    Object.setPrototypeOf(this, new.target.prototype);
-    Error.captureStackTrace(this, this.constructor);
   }
 }
 
-export { CustomError as AppError };
+export { CentralAppError as AppError };
 
 export class BadRequestError extends CustomError {
   constructor(message: string = "Bad Request", details: any = null) {

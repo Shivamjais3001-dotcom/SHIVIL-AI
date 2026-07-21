@@ -7,10 +7,12 @@ dotenv.config();
 const envSchema = z.object({
   NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
   PORT: z.string().transform((val) => parseInt(val, 10)).default("5000"),
-  DATABASE_URL: z.string().url("Invalid DATABASE_URL format"),
-  JWT_SECRET: z.string().min(32, "JWT_SECRET must be at least 32 characters long").optional(), // Making optional temporarily if it's missing in local
+  DATABASE_URL: z.string().url("Invalid DATABASE_URL format").default("postgresql://postgres:postgres@localhost:5432/shivil_db"),
+  REDIS_URL: z.string().optional().default("redis://localhost:6379"),
+  JWT_ACCESS_SECRET: z.string().min(16, "JWT_ACCESS_SECRET must be at least 16 characters").default("shivil_ai_access_token_secret_production_key_2026"),
+  JWT_REFRESH_SECRET: z.string().min(16, "JWT_REFRESH_SECRET must be at least 16 characters").default("shivil_ai_refresh_token_secret_production_key_2026"),
   JWT_EXPIRES_IN: z.string().default("1d"),
-  CORS_ORIGIN: z.string().default("*"),
+  CORS_ORIGIN: z.string().default("http://localhost:5173"),
   LOG_LEVEL: z.enum(["error", "warn", "info", "http", "verbose", "debug", "silly"]).default("info"),
 });
 

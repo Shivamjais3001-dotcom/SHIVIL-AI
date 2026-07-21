@@ -7,6 +7,7 @@ import prisma from "../config/database";
 const studentRepository = new StudentRepository();
 
 export class StudentService {
+  constructor(private readonly studentRepo: StudentRepository = studentRepository) {}
   async getStudents(
     params: PaginationParams & { 
       branch?: string; 

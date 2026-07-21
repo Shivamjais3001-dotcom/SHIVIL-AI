@@ -7,6 +7,7 @@ import prisma from "../config/database";
 const facultyRepository = new FacultyRepository();
 
 export class FacultyService {
+  constructor(private readonly facultyRepo: FacultyRepository = facultyRepository) {}
   async getFaculty(
     params: PaginationParams & { 
       department?: string; 

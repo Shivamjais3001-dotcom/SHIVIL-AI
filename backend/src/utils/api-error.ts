@@ -1,13 +1,11 @@
-export class ApiError extends Error {
-  public readonly statusCode: number;
+import { AppError } from "../common/errors/AppError";
+
+export class ApiError extends AppError {
   public readonly details: any;
 
   constructor(statusCode: number, message: string, details: any = null) {
-    super(message);
-    this.statusCode = statusCode;
+    super(message, statusCode, true);
     this.details = details;
-    Object.setPrototypeOf(this, new.target.prototype);
-    Error.captureStackTrace(this, this.constructor);
   }
 
   static badRequest(message: string, details: any = null) {

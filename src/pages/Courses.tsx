@@ -38,11 +38,15 @@ function Courses() {
     fetchCourses();
   }, []);
 
-  // Filter search queries
+  // Filter search queries safely with defensive checks
   const filteredCourses = useMemo(() => {
+    if (!Array.isArray(courses)) return [];
     return courses.filter((course) => {
-      const matchSearch = course.courseName.toLowerCase().includes(search.toLowerCase()) ||
-                          course.courseCode.toLowerCase().includes(search.toLowerCase());
+      const name = String(course?.courseName || (course as any)?.name || "").toLowerCase();
+      const code = String(course?.courseCode || (course as any)?.code || "").toLowerCase();
+      const searchLower = String(search || "").toLowerCase();
+
+      const matchSearch = name.includes(searchLower) || code.includes(searchLower);
       const matchDept = filterDept === "All" || course.department === filterDept;
       
       return matchSearch && matchDept;

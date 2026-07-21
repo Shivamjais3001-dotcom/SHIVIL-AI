@@ -63,7 +63,7 @@ export const resetPasswordSchema = z.object({
 
 export const changePasswordSchema = z.object({
   body: z.object({
-OldPassword: z.string({ required_error: "Old password is required" }),
+    oldPassword: z.string({ required_error: "Old password is required" }),
     newPassword: passwordSchema
   })
 });

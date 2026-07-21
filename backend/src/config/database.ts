@@ -214,8 +214,8 @@ class MockPrismaClient {
   }
 }
 
-// Check if we should run in Mock mode (default when database is offline or specifically requested)
-const useMockDatabase = process.env.MOCK_DATABASE === "true" || process.env.NODE_ENV !== "production";
+// Check if we should run in Mock mode (only when explicitly requested via env variable)
+const useMockDatabase = process.env.MOCK_DATABASE === "true";
 
 let prismaInstance: any;
 

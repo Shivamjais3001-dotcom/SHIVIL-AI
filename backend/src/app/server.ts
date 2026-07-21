@@ -2,9 +2,17 @@
 import { env } from "../config/env.config";
 import app from "./app";
 import { logger } from "../common/logger/winston.logger";
+import { initSocketServer } from "../common/socket/socket.service";
+import { getRedisClient } from "../config/redis.config";
 
-const server = app.listen(env.PORT, () => {
+const server = app.listen(env.PORT, async () => {
   logger.info(`🚀 [SHIVIL SERVER] Operating system server active in ${env.NODE_ENV} mode on port ${env.PORT}`);
+
+  // Initialize Real-time WebSocket Server
+  initSocketServer(server);
+
+  // Initialize Redis Cache Client gracefully
+  await getRedisClient();
 });
 
 // Capture system exceptions to prevent sudden thread crashes

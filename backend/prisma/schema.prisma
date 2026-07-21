@@ -7,6 +7,36 @@ generator client {
   provider = "prisma-client-js"
 }
 
+// ─── IDENTITY & SECURITY ENUMS ─────────────────────────────────────────
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+  PENDING_VERIFICATION
+}
+
+enum SessionStatus {
+  ACTIVE
+  EXPIRED
+  REVOKED
+}
+
+enum TokenStatus {
+  ACTIVE
+  USED
+  EXPIRED
+  REVOKED
+}
+
+enum LoginStatus {
+  SUCCESS
+  FAILED_INVALID_CREDENTIALS
+  FAILED_ACCOUNT_LOCKED
+  FAILED_UNVERIFIED_EMAIL
+  FAILED_SUSPENDED
+}
+
 enum Role {
   SUPER_ADMIN
   UNIVERSITY_ADMIN
@@ -71,6 +101,8 @@ enum AttendanceStatus {
   EXCUSED
 }
 
+// ─── CORE TENANCY MODEL ───────────────────────────────────────────────
+
 model University {
   id        String    @id @default(uuid())
   name      String    @unique
@@ -80,34 +112,287 @@ model University {
   deletedAt DateTime?
 
   users     User[]
+  roles     RoleEntity[]
 }
 
-model User {
-  id                        String              @id @default(uuid())
-  email                     String              @unique
-  passwordHash              String
-  role                      Role                @default(STUDENT)
-  isVerified                Boolean             @default(false)
-  createdAt                 DateTime            @default(now())
-  updatedAt                 DateTime            @updatedAt
-  deletedAt                 DateTime?
-  
-  universityId              String?
-  university                University?         @relation(fields: [universityId], references: [id], onDelete: SetNull)
+// ─── PURE IDENTITY MODEL ──────────────────────────────────────────────
 
-  student                   Student?
-  faculty                   Faculty?
-  notifications             Notification[]
-  sessions                  Session[]
-  auditLogs                 AuditLog[]
-  aiConversations           AIConversation[]
-  passwordResets            PasswordReset[]
-  emailVerifications        EmailVerification[]
-  apiKeys                   ApiKey[]
+model User {
+  id                  String               @id @default(uuid())
+  email               String               @unique
+  passwordHash        String
+  status              UserStatus           @default(PENDING_VERIFICATION)
+  role                Role                 @default(STUDENT) // Backward compatibility default
+  isVerified          Boolean              @default(false)
+  lastLoginAt         DateTime?
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  deletedAt           DateTime?
+
+  universityId        String?
+  university          University?          @relation(fields: [universityId], references: [id], onDelete: SetNull)
+
+  // Identity Subsystem Relations
+  userRoles           UserRole[]
+  sessions            Session[]
+  refreshTokens       RefreshToken[]
+  passwordResets      PasswordReset[]
+  emailVerifications  EmailVerification[]
+  devices             Device[]
+  auditLogs           AuditLog[]
+  apiKeys             ApiKey[]
+  loginAttempts       LoginAttempt[]
+
+  // Domain Module Relations (Loose Coupling via Identity ID)
+  student             Student?
+  faculty             Faculty?
+  notifications       Notification[]
+  aiConversations     AIConversation[]
 
   @@index([email])
   @@index([universityId])
+  @@index([status])
+  @@index([role])
+  @@index([createdAt])
 }
+
+// ─── RBAC ROLE & PERMISSION SYSTEM ────────────────────────────────────
+
+model RoleEntity {
+  id           String           @id @default(uuid())
+  code         String           @unique // e.g. "FACULTY_HEAD"
+  name         String           // e.g. "Head of Faculty"
+  description  String?
+  isSystem     Boolean          @default(false)
+  universityId String?
+  university   University?      @relation(fields: [universityId], references: [id], onDelete: Cascade)
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  userRoles    UserRole[]
+  permissions  RolePermission[]
+
+  @@index([code])
+  @@index([universityId])
+}
+
+model Permission {
+  id          String           @id @default(uuid())
+  code        String           @unique // e.g. "attendance:session:create"
+  name        String
+  resource    String           // e.g. "attendance"
+  action      String           // e.g. "create"
+  description String?
+  createdAt   DateTime         @default(now())
+
+  roles       RolePermission[]
+
+  @@index([code])
+  @@index([resource, action])
+}
+
+model RolePermission {
+  roleId       String
+  role         RoleEntity @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permissionId String
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  assignedAt   DateTime   @default(now())
+
+  @@id([roleId, permissionId])
+  @@index([roleId])
+  @@index([permissionId])
+}
+
+model UserRole {
+  userId     String
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  roleId     String
+  role       RoleEntity @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  assignedAt DateTime   @default(now())
+
+  @@id([userId, roleId])
+  @@index([userId])
+  @@index([roleId])
+}
+
+// ─── SESSION & TOKEN MANAGEMENT ──────────────────────────────────────
+
+model Session {
+  id             String        @id @default(uuid())
+  refreshToken   String?       @unique
+  userId         String
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deviceId       String?
+  device         Device?       @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+  status         SessionStatus @default(ACTIVE)
+  ipAddress      String?
+  userAgent      String?
+  lastActivityAt DateTime      @default(now())
+  expiresAt      DateTime
+  createdAt      DateTime      @default(now())
+
+  refreshTokens  RefreshToken[]
+
+  @@index([userId])
+  @@index([refreshToken])
+  @@index([status])
+  @@index([expiresAt])
+  @@index([userId, status])
+  @@index([status, expiresAt])
+}
+
+model RefreshToken {
+  id              String      @id @default(uuid())
+  sessionId       String
+  session         Session     @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  userId          String
+  user            User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash       String      @unique
+  status          TokenStatus @default(ACTIVE)
+  replacedByToken String?
+  expiresAt       DateTime
+  createdAt       DateTime    @default(now())
+  revokedAt       DateTime?
+
+  @@index([tokenHash])
+  @@index([userId])
+  @@index([sessionId])
+  @@index([status])
+  @@index([replacedByToken])
+  @@index([userId, status])
+}
+
+model PasswordReset {
+  id        String      @id @default(uuid())
+  userId    String
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String      @unique
+  status    TokenStatus @default(ACTIVE)
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime    @default(now())
+
+  @@index([token])
+  @@index([userId])
+  @@index([status])
+}
+
+model EmailVerification {
+  id        String      @id @default(uuid())
+  userId    String
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String      @unique
+  status    TokenStatus @default(ACTIVE)
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime    @default(now())
+
+  @@index([token])
+  @@index([userId])
+  @@index([status])
+}
+
+// ─── DEVICE & SECURITY AUDITING ───────────────────────────────────────
+
+model Device {
+  id          String    @id @default(uuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deviceName  String?   // e.g. "MacBook Pro"
+  browser     String?   // e.g. "Chrome 122"
+  os          String?   // e.g. "macOS Sonoma"
+  ipAddress   String?
+  location    String?   // Country / City placeholder
+  isTrusted   Boolean   @default(false)
+  lastSeenAt  DateTime  @default(now())
+  createdAt   DateTime  @default(now())
+
+  sessions    Session[]
+
+  @@index([userId])
+  @@index([userId, isTrusted])
+}
+
+model LoginAttempt {
+  id            String      @id @default(uuid())
+  userId        String?
+  user          User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+  email         String
+  ipAddress     String?
+  userAgent     String?
+  status        LoginStatus
+  failureReason String?
+  createdAt     DateTime    @default(now())
+
+  @@index([email])
+  @@index([ipAddress])
+  @@index([status])
+  @@index([createdAt])
+  @@index([email, createdAt])
+  @@index([ipAddress, status, createdAt])
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  actorId    String?  // ID of admin who performed action (if different)
+  action     String   // e.g. "PASSWORD_RESET", "ROLE_UPDATED"
+  resource   String?  // e.g. "user", "course"
+  details    Json?
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+  @@index([userId, action])
+  @@index([action, createdAt])
+}
+
+model ApiKey {
+  id         String    @id @default(uuid())
+  name       String
+  key        String    @unique
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt  DateTime  @default(now())
+  expiresAt  DateTime?
+  lastUsedAt DateTime?
+
+  @@index([userId])
+  @@index([key])
+}
+
+// ─── FUTURE SAAS EXPANSION PLACEHOLDERS ───────────────────────────────
+
+model TenantSubscription {
+  id           String   @id @default(uuid())
+  universityId String   @unique
+  planName     String   @default("ENTERPRISE_TIER_1")
+  maxUsers     Int      @default(10000)
+  status       String   @default("ACTIVE")
+  renewsAt     DateTime
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([universityId])
+}
+
+model AIUsageToken {
+  id        String   @id @default(uuid())
+  userId    String
+  tokensUsed Int     @default(0)
+  promptCount Int    @default(0)
+  monthYear String   // e.g. "2026-07"
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, monthYear])
+}
+
+// ─── DOMAIN MODULES (STUDENT, FACULTY, ACADEMICS) ──────────────────────
 
 model Student {
   id               String       @id @default(uuid())
@@ -129,7 +414,6 @@ model Student {
   parentName       String?
   parentContact    String?
 
-  // Structured JSON fields for Enterprise scale and AI compatibility
   guardianDetails  Json?
   emergencyContact Json?
   medicalInfo      Json?
@@ -174,10 +458,9 @@ model Faculty {
   qualification   String      @default("PhD")
   experienceYears Int         @default(0)
   status          String      @default("Active")
-  specialty       String?     // Keep for backward compatibility
+  specialty       String?
   researchArea    String?
 
-  // Structured JSON fields for workload, leaves, research, and timelines
   officeInfo      Json?
   researchModule  Json?
   workload        Json?
@@ -230,12 +513,11 @@ model Subject {
   course          Course      @relation(fields: [courseId], references: [id])
   facultyId       String?
   faculty         Faculty?    @relation(fields: [facultyId], references: [id])
-  type            String      @default("CORE") // CORE, ELECTIVE
+  type            String      @default("CORE")
   
-  // Curriculum configuration JSONs for advanced mapping and version control
   prerequisites   Json?
   corequisites    Json?
-  syllabusDetails Json? // { theoryCredits, practicalCredits, outcomes, version }
+  syllabusDetails Json?
 
   createdAt       DateTime    @default(now())
   updatedAt       DateTime    @updatedAt
@@ -343,9 +625,9 @@ model FacultyAttendance {
 
 model Timetable {
   id         String   @id @default(uuid())
-  dayOfWeek  Int      // 1 = Monday, etc.
-  startTime  String   // e.g. "09:00"
-  endTime    String   // e.g. "10:30"
+  dayOfWeek  Int
+  startTime  String
+  endTime    String
   subjectId  String
   subject    Subject  @relation(fields: [subjectId], references: [id])
   facultyId  String
@@ -355,29 +637,21 @@ model Timetable {
   @@index([facultyId])
 }
 
-
-// ============================================================
-// EXAMINATION & ASSESSMENT ENGINE — Sprint 8
-// ============================================================
-
-// Assessment Component Configuration — per-subject weightage
 model AssessmentComponent {
   id               String   @id @default(uuid())
   subjectId        String   @unique
   subject          Subject  @relation(fields: [subjectId], references: [id])
   universityId     String?
 
-  // Weightage breakdown (must sum to 100%)
-  internalWeight   Float    @default(30)   // Internal assessment %
-  externalWeight   Float    @default(70)   // End-semester exam %
-  assignmentWeight Float    @default(0)    // Assignments %
-  quizWeight       Float    @default(0)    // Quizzes %
-  labWeight        Float    @default(0)    // Lab practical %
-  attendanceWeight Float    @default(0)    // Attendance-linked marks %
-  projectWeight    Float    @default(0)    // Project %
-  presentationWeight Float  @default(0)   // Presentation / Viva %
+  internalWeight   Float    @default(30)
+  externalWeight   Float    @default(70)
+  assignmentWeight Float    @default(0)
+  quizWeight       Float    @default(0)
+  labWeight        Float    @default(0)
+  attendanceWeight Float    @default(0)
+  projectWeight    Float    @default(0)
+  presentationWeight Float  @default(0)
 
-  // Max marks per component
   internalMaxMarks   Float  @default(30)
   externalMaxMarks   Float  @default(70)
   totalMaxMarks      Float  @default(100)
@@ -389,7 +663,6 @@ model AssessmentComponent {
   @@index([universityId])
 }
 
-// Core Exam Entity
 model Exam {
   id               String        @id @default(uuid())
   title            String
@@ -400,33 +673,26 @@ model Exam {
   semester         String
   academicYear     String
 
-  // Scheduling
   date             DateTime
-  startTime        String        // HH:MM
-  endTime          String        // HH:MM
+  startTime        String
+  endTime          String
 
-  // Venue & Invigilation
   classroomId      String?
-  invigilatorId    String?       // Faculty ID
-  venueDetails     Json?         // Additional room info
+  invigilatorId    String?
+  venueDetails     Json?
 
-  // Exam Configuration
   maxMarks         Float         @default(100)
   passingMarks     Float         @default(40)
   weightagePercent Float         @default(100)
-  duration         Int           @default(180) // minutes
+  duration         Int           @default(180)
 
-  // Status & Workflow
   approvalStatus   ApprovalStatus @default(PENDING)
   isLocked         Boolean       @default(false)
   lockedAt         DateTime?
   lockedById       String?
 
-  // AI Metadata
-  questionBlueprintMetadata  Json?   // AI question paper blueprint data
+  questionBlueprintMetadata  Json?
   difficultyLevel  String?   @default("MEDIUM")
-
-  // Conflict detection hash: date+startTime+classroomId
   conflictHash     String?
 
   createdById      String?
@@ -445,10 +711,9 @@ model Exam {
   @@index([date])
   @@index([approvalStatus])
   @@index([conflictHash])
-  @@index([classroomId, date, startTime]) // Conflict detection composite
+  @@index([classroomId, date, startTime])
 }
 
-// ExamMark — Core mark record with full audit trail
 model ExamMark {
   id               String        @id @default(uuid())
   examId           String
@@ -456,7 +721,6 @@ model ExamMark {
   studentId        String
   student          Student       @relation(fields: [studentId], references: [id])
 
-  // Component-wise marks
   internalMarks    Float         @default(0)
   externalMarks    Float         @default(0)
   assignmentMarks  Float         @default(0)
@@ -467,35 +731,27 @@ model ExamMark {
   attendanceMarks  Float         @default(0)
   totalMarks       Float         @default(0)
 
-  // Grading
-  grade            String?       // A+, A, B+, B, C, D, F
-  gradePoint       Float?        // 10.0, 9.0, 8.0 etc.
-  creditPoints     Float?        // gradePoint * credits
+  grade            String?
+  gradePoint       Float?
+  creditPoints     Float?
 
-  // Moderation
-  originalMarks    Float?        // Before moderation
-  moderatedMarks   Float?        // After moderation delta
-  moderationDelta  Float?        // e.g. +5, -2
+  originalMarks    Float?
+  moderatedMarks   Float?
+  moderationDelta  Float?
   moderationReason String?
 
-  // Approval workflow
   approvalStatus   ApprovalStatus @default(PENDING)
-  submittedById    String?       // Faculty who entered marks
+  submittedById    String?
   submittedAt      DateTime?
-  reviewedById     String?       // HOD who reviewed
+  reviewedById     String?
   reviewedAt       DateTime?
-  approvedById     String?       // EXAM_CONTROLLER who approved
+  approvedById     String?
   approvedAt       DateTime?
   rejectionReason  String?
 
-  // Re-evaluation flag
   hasReEvalRequest Boolean       @default(false)
-
-  // Full immutable audit trail (JSON array of changes)
   auditTrail       Json?
-
-  // AI metadata
-  performanceMetadata Json?      // AI anomaly detection flags
+  performanceMetadata Json?
 
   isLocked         Boolean       @default(false)
   createdAt        DateTime      @default(now())
@@ -513,28 +769,20 @@ model ExamMark {
   @@index([studentId, grade])
 }
 
-// GradingPolicy — Per-university, multi-tenant grading rules
 model GradingPolicy {
   id                    String   @id @default(uuid())
   universityId          String?  @unique
 
-  // Letter grade boundaries (percentage thresholds)
-  // e.g. { "O": 90, "A+": 80, "A": 70, "B+": 60, "B": 50, "C": 45, "P": 40, "F": 0 }
   gradeBoundaries       Json?
-
-  // Grade points per letter
-  // e.g. { "O": 10, "A+": 9, "A": 8, "B+": 7, "B": 6, "C": 5, "P": 4, "F": 0 }
   gradePoints           Json?
 
-  // CGPA/SGPA rules
-  creditSystem          String   @default("10_POINT")  // 10_POINT, 4_POINT, PERCENTAGE
+  creditSystem          String   @default("10_POINT")
   promotionMinCGPA      Float    @default(4.0)
   promotionMaxBacklogs  Int      @default(3)
   graduationMinCredits  Int      @default(120)
   graduationMinCGPA     Float    @default(5.0)
   passingGradePoint     Float    @default(4.0)
 
-  // Custom university rules JSON (for any edge cases)
   customRules           Json?
 
   createdAt             DateTime @default(now())
@@ -543,7 +791,6 @@ model GradingPolicy {
   @@index([universityId])
 }
 
-// StudentResultSummary — Computed SGPA/CGPA per semester
 model StudentResultSummary {
   id                String       @id @default(uuid())
   studentId         String
@@ -552,30 +799,23 @@ model StudentResultSummary {
   semester          String
   academicYear      String
 
-  // Computed scores
   sgpa              Float        @default(0.0)
   cgpa              Float        @default(0.0)
 
-  // Credits
   creditsRegistered Int          @default(0)
   creditsEarned     Int          @default(0)
   totalCreditPoints Float        @default(0.0)
 
-  // Backlogs
   backlogsCount     Int          @default(0)
-  backlogSubjects   Json?        // Array of {subjectId, subjectCode, marks, grade}
+  backlogSubjects   Json?
 
-  // Promotion & Status
   resultStatus      ResultStatus @default(PROCESSING)
   isEligibleForPromotion Boolean @default(false)
   isEligibleForGraduation Boolean @default(false)
 
-  // Processing metadata
   processedAt       DateTime?
   processedById     String?
-
-  // AI Insights
-  aiInsights        Json?        // Performance trend, risk prediction
+  aiInsights        Json?
 
   createdAt         DateTime     @default(now())
   updatedAt         DateTime     @updatedAt
@@ -589,13 +829,12 @@ model StudentResultSummary {
   @@index([studentId, semester])
 }
 
-// ExamAuditLog — Immutable audit trail for all exam operations
 model ExamAuditLog {
   id           String   @id @default(uuid())
   examId       String?
   exam         Exam?    @relation(fields: [examId], references: [id])
   examMarkId   String?
-  action       String   // e.g. MARKS_ENTERED, MARKS_MODERATED, MARKS_APPROVED, EXAM_LOCKED
+  action       String
   actorId      String
   actorRole    String
   previousValue Json?
@@ -611,7 +850,6 @@ model ExamAuditLog {
   @@index([createdAt])
 }
 
-// ReEvaluation — Student/faculty re-evaluation requests
 model ReEvaluation {
   id            String        @id @default(uuid())
   examId        String
@@ -629,7 +867,6 @@ model ReEvaluation {
   reviewedAt    DateTime?
   reviewNotes   String?
 
-  // Mark changes post re-eval
   previousMarks Float?
   revisedMarks  Float?
   previousGrade String?
@@ -645,15 +882,14 @@ model ReEvaluation {
   @@index([examMarkId])
 }
 
-// ResultProcessingJob — Async result generation tracking
 model ResultProcessingJob {
   id            String   @id @default(uuid())
   universityId  String?
   semester      String
   academicYear  String
-  batchFilter   Json?    // { branch, section, subjectIds }
+  batchFilter   Json?
 
-  status        String   @default("QUEUED") // QUEUED, PROCESSING, COMPLETED, FAILED
+  status        String   @default("QUEUED")
   totalStudents Int      @default(0)
   processed     Int      @default(0)
   failed        Int      @default(0)
@@ -670,19 +906,16 @@ model ResultProcessingJob {
   @@index([status])
 }
 
-// Legacy result model (kept for backward compatibility)
 model Result {
   id         String   @id @default(uuid())
   marks      Float
   grade      String
-  examType   String   // e.g. "MID_TERM", "FINAL"
+  examType   String
   studentId  String
   student    Student  @relation(fields: [studentId], references: [id])
 
   @@index([studentId])
 }
-
-
 
 model HostelRoom {
   id        String   @id @default(uuid())
@@ -708,7 +941,7 @@ model LibraryIssue {
 model FeeReceipt {
   id        String   @id @default(uuid())
   amount    Float
-  status    String   // "PAID", "PENDING"
+  status    String
   dueDate   DateTime
   studentId String
   student   Student  @relation(fields: [studentId], references: [id])
@@ -721,8 +954,8 @@ model AIConversation {
   id        String   @id @default(uuid())
   userId    String
   user      User     @relation(fields: [userId], references: [id])
-  history   Json     // Stores array of prompt/response turns
-  context   String?  // Active ERP querying state details
+  history   Json
+  context   String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -733,82 +966,11 @@ model Notification {
   id           String   @id @default(uuid())
   title        String
   content      String
-  type         String   // "EMAIL", "IN_APP"
+  type         String
   userId       String
   user         User     @relation(fields: [userId], references: [id])
   isRead       Boolean  @default(false)
   createdAt    DateTime @default(now())
-
-  @@index([userId])
-}
-
-model Session {
-  id           String   @id @default(uuid())
-  refreshToken String   @unique
-  ipAddress    String?
-  userAgent    String?
-  userId       String
-  user         User     @relation(fields: [userId], references: [id])
-  expiresAt    DateTime
-  createdAt    DateTime @default(now())
-
-  @@index([userId])
-}
-
-model UserSecret {
-  id        String   @id @default(uuid())
-  userId    String
-  secretKey String
-  createdAt DateTime @default(now())
-
-  @@index([userId])
-}
-
-model AuditLog {
-  id        String   @id @default(uuid())
-  action    String   // e.g. "STUDENT_RECORD_CREATE"
-  ipAddress String?
-  details   Json?
-  userId    String
-  user      User     @relation(fields: [userId], references: [id])
-  createdAt DateTime @default(now())
-
-  @@index([userId])
-}
-
-model PasswordReset {
-  id        String    @id @default(uuid())
-  userId    String
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  token     String    @unique
-  expiresAt DateTime
-  usedAt    DateTime?
-  createdAt DateTime  @default(now())
-
-  @@index([userId])
-}
-
-model EmailVerification {
-  id        String    @id @default(uuid())
-  userId    String
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  token     String    @unique
-  expiresAt DateTime
-  usedAt    DateTime?
-  createdAt DateTime  @default(now())
-
-  @@index([userId])
-}
-
-model ApiKey {
-  id         String    @id @default(uuid())
-  name       String
-  key        String    @unique
-  userId     String
-  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt  DateTime  @default(now())
-  expiresAt  DateTime?
-  lastUsedAt DateTime?
 
   @@index([userId])
 }
@@ -831,8 +993,8 @@ model Classroom {
   building      String
   roomNo        String
   capacity      Int
-  type          String           @default("Classroom") // e.g. "Classroom", "Lab", "SeminarHall"
-  resources     Json?            // Array of features (e.g. Projector, AC)
+  type          String           @default("Classroom")
+  resources     Json?
   availability  Boolean          @default(true)
   universityId  String?
   createdAt     DateTime         @default(now())
@@ -856,7 +1018,7 @@ model CourseOffering {
   semester     String
   academicYear String
   maxCapacity  Int         @default(60)
-  status       String      @default("Open") // e.g. "Open", "Closed", "Waitlist"
+  status       String      @default("Open")
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
 
@@ -873,7 +1035,7 @@ model Enrollment {
   student    Student        @relation(fields: [studentId], references: [id])
   offeringId String
   offering   CourseOffering @relation(fields: [offeringId], references: [id])
-  status     String         @default("ENROLLED") // e.g. "ENROLLED", "WAITLISTED", "DROPPED"
+  status     String         @default("ENROLLED")
   createdAt  DateTime       @default(now())
   updatedAt  DateTime       @updatedAt
 
@@ -884,7 +1046,7 @@ model Enrollment {
 model AcademicCalendar {
   id           String   @id @default(uuid())
   title        String
-  type         String   // e.g. "SemesterStart", "SemesterEnd", "Registration", "Exam", "Holiday"
+  type         String
   startDate    DateTime
   endDate      DateTime
   description  String?

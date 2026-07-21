@@ -8,10 +8,13 @@ import { GradingService } from "./grading.service";
 import { ApiError } from "../utils/api-error";
 import { buildPaginatedMeta } from "../utils/pagination";
 
+import { ResilientTaskQueue } from "../common/utils/background-job";
+
 const resultRepo = new ResultSummaryRepository();
 const policyRepo = new GradingPolicyRepository();
 const markRepo = new ExamMarkRepository();
 const gradingService = new GradingService();
+const resultBatchQueue = new ResilientTaskQueue<{ jobId: string; params: any }>("ResultBatchProcessing", 5);
 
 export class ResultService {
   // ─── PROCESS RESULTS FOR A STUDENT/SEMESTER ─────────────────────────
@@ -164,12 +167,13 @@ export class ResultService {
       }
     });
 
-    // 2. Offload processing to background thread/task to avoid blocking Express event loop
-    setImmediate(() => {
-      this.runBatchJob(job.id, params).catch((err: any) => {
-        console.error(`Fatal crash in background results batch job ${job.id}:`, err);
-      });
-    });
+    // 2. Offload processing to resilient queue to protect Event Loop & memory
+    resultBatchQueue.enqueue(
+      { jobId: job.id, params },
+      async ({ jobId, params }) => {
+        await this.runBatchJob(jobId, params);
+      }
+    );
 
     // 3. Return the queued job details immediately (with 202 Accepted in controller)
     return job;

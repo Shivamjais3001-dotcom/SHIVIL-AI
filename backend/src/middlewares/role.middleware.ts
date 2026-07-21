@@ -59,14 +59,22 @@ export function requireUniversityMatch() {
       const targetUniversityId =
         req.params.universityId ||
         req.query.universityId ||
-        req.body.universityId ||
+        req.body?.universityId ||
         req.headers["x-university-id"];
 
       if (!targetUniversityId) {
+        // Automatically inject user's tenant ID into query or body if omitted
+        if (req.user.universityId) {
+          if (req.method === "GET") {
+            req.query.universityId = req.user.universityId;
+          } else if (req.body && typeof req.body === "object") {
+            req.body.universityId = req.user.universityId;
+          }
+        }
         return next();
       }
 
-      if (req.user.universityId !== targetUniversityId) {
+      if (req.user.universityId && req.user.universityId !== targetUniversityId) {
         throw ApiError.forbidden("Access forbidden. Operations are isolated within your own university tenant.");
       }
 

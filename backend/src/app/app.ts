@@ -11,8 +11,8 @@ import { ApiResponse } from "../common/responses/ApiResponse";
 // Database
 import prisma from "../config/database";
 
-// Existing Route imports (Temporary, will be moved to modules/ eventually)
-import authRoutes from "../routes/auth.routes";
+// Modular Feature Route imports
+import authRoutes from "../modules/auth/auth.routes";
 import studentRoutes from "../routes/student.routes";
 import facultyRoutes from "../routes/faculty.routes";
 import courseRoutes from "../routes/course.routes";
