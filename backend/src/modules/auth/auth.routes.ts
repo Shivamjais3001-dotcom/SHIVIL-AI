@@ -13,7 +13,7 @@ import {
   changePasswordSchema
 } from "./auth.validator";
 
-import { SignupSchema, LoginSchema, ResendVerificationSchema, EmailVerificationSchema } from "../../common/validation/schemas/auth.schemas";
+import { SignupSchema, LoginSchema, ForgotPasswordSchema, ResetPasswordSchema, ResendVerificationSchema, EmailVerificationSchema } from "../../common/validation/schemas/auth.schemas";
 
 const router = Router();
 const authController = new AuthController();
@@ -54,8 +54,8 @@ router.post("/refresh", authController.refresh);
 router.post("/logout", authController.logout);
 
 // Verification & Recovery Flows with rate limits
-router.post("/forgot-password", authLimiter, validate(forgotPasswordSchema), authController.forgotPassword);
-router.post("/reset-password", authLimiter, validate(resetPasswordSchema), authController.resetPassword);
+router.post("/forgot-password", authLimiter, validate(ForgotPasswordSchema), authController.forgotPassword);
+router.post("/reset-password", authLimiter, validate(ResetPasswordSchema), authController.resetPassword);
 router.post("/verify-email", validate(EmailVerificationSchema), authController.verifyEmail);
 router.get("/verify-email", validate(EmailVerificationSchema), authController.verifyEmail); // Supports link clicks from mailers
 router.post("/resend-verification", authLimiter, validate(ResendVerificationSchema), authController.resendVerification);

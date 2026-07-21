@@ -1,4 +1,4 @@
-import { PrismaClient, Prisma, Role as PrismaRole } from "@prisma/client";
+import { PrismaClient, Prisma, Role as PrismaRole, LoginStatus } from "@prisma/client";
 import prismaDefault from "../config/database";
 import { Role } from "../types/role";
 
@@ -226,6 +226,14 @@ export class UserRepository {
     });
   }
 
+  async invalidateActivePasswordResets(userId: string, tx?: PrismaClient | Prisma.TransactionClient) {
+    const db = this.getDb(tx);
+    return db.passwordReset.updateMany({
+      where: { userId, status: "ACTIVE" },
+      data: { status: "REVOKED" }
+    });
+  }
+
   async createEmailVerification(
     data: { userId: string; token: string; expiresAt: Date },
     tx?: PrismaClient | Prisma.TransactionClient
@@ -260,6 +268,43 @@ export class UserRepository {
     return db.emailVerification.updateMany({
       where: { userId, status: "ACTIVE" },
       data: { status: "REVOKED" }
+    });
+  }
+
+  // --- BRUTE FORCE PROTECTION & LOGIN ATTEMPTS ---
+  async recordLoginAttempt(
+    data: {
+      userId?: string;
+      email: string;
+      ipAddress?: string;
+      userAgent?: string;
+      status: LoginStatus;
+      failureReason?: string;
+    },
+    tx?: PrismaClient | Prisma.TransactionClient
+  ) {
+    const db = this.getDb(tx);
+    return db.loginAttempt.create({
+      data: {
+        userId: data.userId || null,
+        email: data.email,
+        ipAddress: data.ipAddress,
+        userAgent: data.userAgent,
+        status: data.status,
+        failureReason: data.failureReason
+      }
+    });
+  }
+
+  async countRecentFailedLoginAttempts(email: string, windowMinutes: number = 15, tx?: PrismaClient | Prisma.TransactionClient): Promise<number> {
+    const db = this.getDb(tx);
+    const windowStart = new Date(Date.now() - windowMinutes * 60 * 1000);
+    return db.loginAttempt.count({
+      where: {
+        email,
+        status: { not: LoginStatus.SUCCESS },
+        createdAt: { gte: windowStart }
+      }
     });
   }
 

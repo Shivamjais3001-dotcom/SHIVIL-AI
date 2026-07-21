@@ -146,15 +146,11 @@ export class AuthController {
 
   async forgotPassword(req: Request, res: Response, next: NextFunction) {
     try {
-      const { email } = req.body;
-      await authService.forgotPassword(email);
+      const ipAddress = req.ip || (req.headers["x-forwarded-for"] as string) || undefined;
+      const requestId = (req as any).id || (req.headers["x-request-id"] as string) || undefined;
 
-      // Generic response for email privacy
-      return sendSuccessResponse(
-        res,
-        null,
-        "If the email address exists in our system, a password reset link has been dispatched."
-      );
+      const result = await authService.forgotPassword(req.body, { ipAddress, requestId });
+      return sendSuccessResponse(res, null, result.message);
     } catch (error) {
       next(error);
     }
@@ -162,10 +158,13 @@ export class AuthController {
 
   async resetPassword(req: Request, res: Response, next: NextFunction) {
     try {
-      const { token, newPassword } = req.body;
-      await authService.resetPassword(token, newPassword);
+      const ipAddress = req.ip || (req.headers["x-forwarded-for"] as string) || undefined;
+      const requestId = (req as any).id || (req.headers["x-request-id"] as string) || undefined;
 
-      return sendSuccessResponse(res, null, "Password has been successfully updated.");
+      const result = await authService.resetPassword(req.body, { ipAddress, requestId });
+      cookieService.clearAuthCookies(res);
+
+      return sendSuccessResponse(res, null, result.message);
     } catch (error) {
       next(error);
     }

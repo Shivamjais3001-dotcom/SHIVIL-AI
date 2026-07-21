@@ -5,7 +5,14 @@ import { PasswordService } from "./services/password.service";
 import { TokenService } from "./services/token.service";
 import { EmailService } from "./services/email.service";
 import { JwtService } from "./services/jwt.service";
-import { SignupInput, ResendVerificationInput, LoginInput } from "../../common/validation/schemas/auth.schemas";
+import { AUTH_CONSTANTS } from "./constants/auth.constants";
+import {
+  SignupInput,
+  ResendVerificationInput,
+  LoginInput,
+  ForgotPasswordInput,
+  ResetPasswordInput,
+} from "../../common/validation/schemas/auth.schemas";
 import { TransactionHelper } from "../../database/utils/transaction.util";
 import { AppError } from "../../common/errors/AppError";
 import { ApiError } from "../../utils/api-error";
@@ -149,14 +156,44 @@ export class AuthService {
   }
 
   /**
-   * Enterprise Production Login Service (Password Verification, Session Management, Audit Logging)
+   * Enterprise Production Login Service (Password Verification, Brute-Force Lockout, Audit Logging)
    */
   async login(data: LoginInput, context?: SignupContext): Promise<LoginResponseDto> {
     const normalizedEmail = data.email.trim().toLowerCase();
 
-    // 1. Lookup User (Prevent Account Enumeration via Uniform Error Message)
+    // 1. Brute-Force Protection Check (Environment-Driven Threshold & Lockout Window)
+    const recentFailedAttempts = await this.userRepository.countRecentFailedLoginAttempts(
+      normalizedEmail,
+      AUTH_CONSTANTS.BRUTE_FORCE.LOCKOUT_WINDOW_MINUTES
+    );
+
+    if (recentFailedAttempts >= AUTH_CONSTANTS.BRUTE_FORCE.MAX_FAILED_LOGIN_ATTEMPTS) {
+      await this.userRepository.createAuditLog({
+        action: "LOGIN_REJECTED_TEMPORARY_LOCKOUT",
+        ipAddress: context?.ipAddress,
+        details: {
+          email: normalizedEmail,
+          failedAttempts: recentFailedAttempts,
+          lockoutDurationMinutes: AUTH_CONSTANTS.BRUTE_FORCE.LOCKOUT_DURATION_MINUTES,
+          requestId: context?.requestId,
+        },
+      });
+      throw new AppError(
+        `Account temporarily locked due to ${recentFailedAttempts} failed login attempts. Please try again after ${AUTH_CONSTANTS.BRUTE_FORCE.LOCKOUT_DURATION_MINUTES} minutes or reset your password.`,
+        429
+      );
+    }
+
+    // 2. Lookup User (Prevent Account Enumeration via Uniform Error Message)
     const user = await this.userRepository.findByEmail(normalizedEmail);
     if (!user) {
+      await this.userRepository.recordLoginAttempt({
+        email: normalizedEmail,
+        ipAddress: context?.ipAddress,
+        userAgent: context?.userAgent,
+        status: "FAILED_INVALID_CREDENTIALS",
+        failureReason: "ACCOUNT_NOT_FOUND",
+      });
       await this.userRepository.createAuditLog({
         action: "LOGIN_FAILED_UNKNOWN_EMAIL",
         ipAddress: context?.ipAddress,
@@ -165,9 +202,17 @@ export class AuthService {
       throw new AppError("Invalid email or password credentials.", 401);
     }
 
-    // 2. Verify Password via PasswordService
+    // 3. Verify Password via PasswordService
     const isPasswordValid = await this.passwordService.verify(data.password, user.passwordHash);
     if (!isPasswordValid) {
+      await this.userRepository.recordLoginAttempt({
+        userId: user.id,
+        email: normalizedEmail,
+        ipAddress: context?.ipAddress,
+        userAgent: context?.userAgent,
+        status: "FAILED_INVALID_CREDENTIALS",
+        failureReason: "INVALID_PASSWORD",
+      });
       await this.userRepository.createAuditLog({
         action: "LOGIN_FAILED_INVALID_PASSWORD",
         userId: user.id,
@@ -177,7 +222,7 @@ export class AuthService {
       throw new AppError("Invalid email or password credentials.", 401);
     }
 
-    // 3. Reject Inactive/Suspended Accounts
+    // 4. Reject Inactive/Suspended Accounts
     if (user.status === "SUSPENDED" || user.status === "INACTIVE") {
       await this.userRepository.createAuditLog({
         action: "LOGIN_REJECTED_ACCOUNT_SUSPENDED",
@@ -188,7 +233,7 @@ export class AuthService {
       throw new AppError("Your account has been suspended or deactivated. Please contact support.", 403);
     }
 
-    // 4. Reject Unverified Emails
+    // 5. Reject Unverified Emails
     if (!user.isVerified) {
       await this.userRepository.createAuditLog({
         action: "LOGIN_REJECTED_UNVERIFIED_EMAIL",
@@ -199,11 +244,20 @@ export class AuthService {
       throw new AppError("Please verify your email address before signing in.", 403);
     }
 
-    // 5. Generate Refresh Token Pair & 30-Day Expiry Date
-    const { rawToken: rawRefreshToken, hashedToken: hashedRefreshToken } = this.tokenService.generateRandomToken();
-    const refreshExpiry = this.tokenService.calculateExpiry(30 * 24); // 30 days expiry
+    // Record Successful Login Attempt
+    await this.userRepository.recordLoginAttempt({
+      userId: user.id,
+      email: normalizedEmail,
+      ipAddress: context?.ipAddress,
+      userAgent: context?.userAgent,
+      status: "SUCCESS",
+    });
 
-    // 6. Create Session Record & Audit Log inside Transaction
+    // 6. Generate Refresh Token Pair & 30-Day Expiry Date
+    const { rawToken: rawRefreshToken, hashedToken: hashedRefreshToken } = this.tokenService.generateRandomToken();
+    const refreshExpiry = this.tokenService.calculateExpiry(30 * 24);
+
+    // 7. Create Session Record & Audit Log inside Transaction
     await TransactionHelper.runInTransaction(async (tx) => {
       await this.userRepository.createSession(
         {
@@ -227,7 +281,7 @@ export class AuthService {
       );
     });
 
-    // 7. Generate Signed 15-Minute Access Token
+    // 8. Generate Signed 15-Minute Access Token
     const accessToken = this.jwtService.generateAccessToken({
       userId: user.id,
       role: user.role,
@@ -259,13 +313,11 @@ export class AuthService {
 
     const hashedRefreshToken = this.tokenService.hashToken(rawRefreshToken);
     
-    // Look up session in DB (support both hashed and legacy unhashed lookup defensively)
     let session = await this.userRepository.findSessionByToken(hashedRefreshToken);
     if (!session) {
       session = await this.userRepository.findSessionByToken(rawRefreshToken);
     }
 
-    // Reuse Detection & Replay Attack Protection: If token is valid JWT but session absent, revoke ALL user sessions
     if (!session) {
       try {
         const decoded = this.jwtService.verifyRefreshToken(rawRefreshToken);
@@ -284,15 +336,13 @@ export class AuthService {
       throw new AppError("Security alert: Invalid or compromised session token. Access revoked across all devices.", 401);
     }
 
-    // Check expiration
     if (this.tokenService.isExpired(session.expiresAt)) {
       await this.userRepository.deleteSession(session.refreshToken);
       throw new AppError("Session expired. Please sign in again.", 401);
     }
 
-    // Rotate Refresh Token: Delete Old Session & Create New Session
     const { rawToken: newRawRefreshToken, hashedToken: newHashedRefreshToken } = this.tokenService.generateRandomToken();
-    const newRefreshExpiry = this.tokenService.calculateExpiry(30 * 24); // 30 days
+    const newRefreshExpiry = this.tokenService.calculateExpiry(30 * 24);
 
     await TransactionHelper.runInTransaction(async (tx) => {
       await this.userRepository.deleteSession(session.refreshToken, tx);
@@ -308,7 +358,6 @@ export class AuthService {
       );
     });
 
-    // Generate New Access Token
     const newAccessToken = this.jwtService.generateAccessToken({
       userId: session.user.id,
       role: session.user.role,
@@ -322,7 +371,7 @@ export class AuthService {
   }
 
   /**
-   * Session Termination (Logout)
+   * Single Device Logout
    */
   async logout(rawRefreshToken: string, context?: SignupContext): Promise<void> {
     if (!rawRefreshToken) return;
@@ -342,6 +391,146 @@ export class AuthService {
         details: { requestId: context?.requestId },
       });
     }
+  }
+
+  /**
+   * Nuclear Revocation: Logout Across All Devices
+   */
+  async logoutAll(userId: string, context?: SignupContext): Promise<void> {
+    await this.userRepository.deleteSessionsByUserId(userId);
+    await this.userRepository.createAuditLog({
+      action: "USER_LOGOUT_ALL_DEVICES",
+      userId,
+      ipAddress: context?.ipAddress,
+      details: { requestId: context?.requestId },
+    });
+  }
+
+  async revokeAllSessions(userId: string, context?: SignupContext): Promise<void> {
+    return this.logoutAll(userId, context);
+  }
+
+  /**
+   * Production Forgot Password (Prevents Email Enumeration)
+   */
+  async forgotPassword(data: ForgotPasswordInput | string, context?: SignupContext): Promise<{ message: string }> {
+    const emailStr = typeof data === "string" ? data : data.email;
+    const normalizedEmail = emailStr.trim().toLowerCase();
+    const genericResponseMessage = "If an account exists for this email address, a password reset link has been dispatched.";
+
+    const user = await this.userRepository.findByEmail(normalizedEmail);
+    if (!user) {
+      await this.userRepository.createAuditLog({
+        action: "USER_FORGOT_PASSWORD_SKIPPED_UNKNOWN_EMAIL",
+        ipAddress: context?.ipAddress,
+        details: { email: normalizedEmail, requestId: context?.requestId },
+      });
+      return { message: genericResponseMessage };
+    }
+
+    // Invalidate previous active password resets
+    await this.userRepository.invalidateActivePasswordResets(user.id);
+
+    // Generate secure random reset token pair
+    const { rawToken, hashedToken } = this.tokenService.generateRandomToken();
+    const resetExpiry = this.tokenService.calculateExpiry(1); // 1 hour expiry
+
+    await TransactionHelper.runInTransaction(async (tx) => {
+      await this.userRepository.createPasswordReset(
+        {
+          userId: user.id,
+          token: hashedToken,
+          expiresAt: resetExpiry,
+        },
+        tx
+      );
+
+      await this.userRepository.createAuditLog(
+        {
+          action: "USER_FORGOT_PASSWORD_REQUEST",
+          userId: user.id,
+          ipAddress: context?.ipAddress,
+          details: { requestId: context?.requestId },
+        },
+        tx
+      );
+    });
+
+    // Queue email dispatch outside transaction
+    await this.emailService.sendPasswordResetEmail(user.email, rawToken);
+
+    return { message: genericResponseMessage };
+  }
+
+  /**
+   * Production Reset Password (Nuclear Session Revocation & Password Hash Update)
+   */
+  async resetPassword(data: ResetPasswordInput | { token: string; newPasswordHash: string }, context?: SignupContext): Promise<{ message: string }> {
+    const token = "token" in data ? data.token : "";
+    const newPassword = "newPassword" in data ? data.newPassword : (data as any).newPasswordHash;
+
+    if (!token || !newPassword) {
+      throw new AppError("Reset token and new password are required.", 400);
+    }
+
+    const hashedToken = this.tokenService.hashToken(token);
+    const resetRecord = await this.userRepository.findPasswordResetByToken(hashedToken);
+
+    if (!resetRecord) {
+      await this.userRepository.createAuditLog({
+        action: "USER_PASSWORD_RESET_FAILED",
+        ipAddress: context?.ipAddress,
+        details: { reason: "TOKEN_NOT_FOUND", requestId: context?.requestId },
+      });
+      throw new AppError("Invalid or expired password reset token.", 400);
+    }
+
+    if (resetRecord.usedAt || (resetRecord as any).status === "REVOKED") {
+      await this.userRepository.createAuditLog({
+        action: "USER_PASSWORD_RESET_FAILED",
+        userId: resetRecord.userId,
+        ipAddress: context?.ipAddress,
+        details: { reason: "TOKEN_ALREADY_USED_OR_REVOKED", requestId: context?.requestId },
+      });
+      throw new AppError("This password reset token has already been used or revoked.", 400);
+    }
+
+    if (this.tokenService.isExpired(resetRecord.expiresAt)) {
+      await this.userRepository.createAuditLog({
+        action: "USER_PASSWORD_RESET_FAILED",
+        userId: resetRecord.userId,
+        ipAddress: context?.ipAddress,
+        details: { reason: "TOKEN_EXPIRED", requestId: context?.requestId },
+      });
+      throw new AppError("Password reset token has expired. Please request a new password reset.", 400);
+    }
+
+    // Validate new password policy
+    const policyResult = this.passwordService.validatePolicy(newPassword);
+    if (!policyResult.isValid) {
+      throw new AppError(`Password validation failed: ${policyResult.errors.join(" ")}`, 400);
+    }
+
+    // Hash new password
+    const passwordHash = await this.passwordService.hash(newPassword);
+
+    // Atomic Password Update & Nuclear Session Revocation
+    await TransactionHelper.runInTransaction(async (tx) => {
+      await this.userRepository.update(resetRecord.userId, { passwordHash }, tx);
+      await this.userRepository.markPasswordResetUsed(hashedToken, tx);
+      await this.userRepository.deleteSessionsByUserId(resetRecord.userId, tx);
+      await this.userRepository.createAuditLog(
+        {
+          action: "USER_PASSWORD_RESET_SUCCESS",
+          userId: resetRecord.userId,
+          ipAddress: context?.ipAddress,
+          details: { requestId: context?.requestId },
+        },
+        tx
+      );
+    });
+
+    return { message: "Password has been successfully updated. All active sessions have been revoked. Please sign in with your new password." };
   }
 
   /**
@@ -412,7 +601,7 @@ export class AuthService {
   }
 
   /**
-   * Production Resend Verification Email Service (Prevents Email Enumeration)
+   * Production Resend Verification Email Service
    */
   async resendVerification(data: ResendVerificationInput, context?: SignupContext): Promise<{ message: string }> {
     const normalizedEmail = data.email.trim().toLowerCase();
@@ -568,59 +757,6 @@ export class AuthService {
     };
   }
 
-  // --- FORGOT & RESET PASSWORD ---
-  async forgotPassword(email: string) {
-    const normalizedEmail = email.trim().toLowerCase();
-    const user = await this.userRepository.findByEmail(normalizedEmail);
-    if (!user) {
-      console.log(`[SECURITY] Forgot password requested for non-existent email: ${email}`);
-      return;
-    }
-
-    const { rawToken, hashedToken } = this.tokenService.generateRandomToken();
-    const expiresAt = this.tokenService.calculateExpiry(1);
-
-    await this.userRepository.createPasswordReset({
-      userId: user.id,
-      token: hashedToken,
-      expiresAt
-    });
-
-    await this.emailService.sendPasswordResetEmail(user.email, rawToken);
-
-    await this.userRepository.createAuditLog({
-      action: "USER_FORGOT_PASSWORD_REQUEST",
-      userId: user.id
-    });
-  }
-
-  async resetPassword(token: string, newPasswordHash: string) {
-    const hashedToken = hashToken(token);
-    const resetRecord = await this.userRepository.findPasswordResetByToken(hashedToken);
-    if (!resetRecord) {
-      throw ApiError.unauthorized("Invalid password reset token.");
-    }
-
-    if (resetRecord.usedAt) {
-      throw ApiError.badRequest("This password reset token has already been used.");
-    }
-
-    if (new Date() > resetRecord.expiresAt) {
-      throw ApiError.badRequest("This password reset token has expired.");
-    }
-
-    const passwordHash = await this.passwordService.hash(newPasswordHash);
-    await this.userRepository.update(resetRecord.userId, { passwordHash });
-    await this.userRepository.markPasswordResetUsed(hashedToken);
-
-    await this.userRepository.deleteSessionsByUserId(resetRecord.userId);
-
-    await this.userRepository.createAuditLog({
-      action: "USER_PASSWORD_RESET_SUCCESS",
-      userId: resetRecord.userId
-    });
-  }
-
   // --- CHANGE PASSWORD ---
   async changePassword(userId: string, data: { oldPasswordHash: string; newPasswordHash: string }) {
     const user = await this.userRepository.findById(userId);
@@ -665,10 +801,6 @@ export class AuthService {
       throw ApiError.forbidden("Access forbidden. Cannot revoke another user's session.");
     }
     await this.userRepository.deleteSessionById(sessionId);
-  }
-
-  async revokeAllSessions(userId: string) {
-    await this.userRepository.deleteSessionsByUserId(userId);
   }
 
   // --- API KEY SERVICE ---
