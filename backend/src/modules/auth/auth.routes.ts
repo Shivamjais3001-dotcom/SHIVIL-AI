@@ -13,7 +13,7 @@ import {
   changePasswordSchema
 } from "./auth.validator";
 
-import { SignupSchema, ResendVerificationSchema, EmailVerificationSchema } from "../../common/validation/schemas/auth.schemas";
+import { SignupSchema, LoginSchema, ResendVerificationSchema, EmailVerificationSchema } from "../../common/validation/schemas/auth.schemas";
 
 const router = Router();
 const authController = new AuthController();
@@ -49,7 +49,7 @@ router.post(
 );
 
 // Standard Login & Refresh Flows with rate limits
-router.post("/login", authLimiter, validate(loginSchema), authController.login);
+router.post("/login", authLimiter, validate(LoginSchema), authController.login);
 router.post("/refresh", authController.refresh);
 router.post("/logout", authController.logout);
 

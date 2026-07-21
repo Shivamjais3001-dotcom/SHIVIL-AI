@@ -1,9 +1,9 @@
 export const AUTH_CONSTANTS = {
   JWT: {
     ACCESS_TOKEN_EXPIRY: "15m" as const,
-    REFRESH_TOKEN_EXPIRY: "7d" as const,
+    REFRESH_TOKEN_EXPIRY: "30d" as const,
     ACCESS_TOKEN_MAX_AGE_MS: 15 * 60 * 1000, // 15 minutes
-    REFRESH_TOKEN_MAX_AGE_MS: 7 * 24 * 60 * 60 * 1000, // 7 days
+    REFRESH_TOKEN_MAX_AGE_MS: 30 * 24 * 60 * 60 * 1000, // 30 days
     ALGORITHM: "HS256" as const,
   },
 

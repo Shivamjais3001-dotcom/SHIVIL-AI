@@ -5,7 +5,7 @@ import { PasswordService } from "./services/password.service";
 import { TokenService } from "./services/token.service";
 import { EmailService } from "./services/email.service";
 import { JwtService } from "./services/jwt.service";
-import { SignupInput, ResendVerificationInput } from "../../common/validation/schemas/auth.schemas";
+import { SignupInput, ResendVerificationInput, LoginInput } from "../../common/validation/schemas/auth.schemas";
 import { TransactionHelper } from "../../database/utils/transaction.util";
 import { AppError } from "../../common/errors/AppError";
 import { ApiError } from "../../utils/api-error";
@@ -34,6 +34,20 @@ export interface SignupResponseDto {
     createdAt: Date;
   };
   message: string;
+}
+
+export interface LoginResponseDto {
+  user: {
+    id: string;
+    email: string;
+    role: string;
+    isVerified: boolean;
+    status: string;
+    universityId: string | null;
+    universityName: string | null;
+  };
+  accessToken: string;
+  refreshToken: string;
 }
 
 export class AuthService {
@@ -135,6 +149,202 @@ export class AuthService {
   }
 
   /**
+   * Enterprise Production Login Service (Password Verification, Session Management, Audit Logging)
+   */
+  async login(data: LoginInput, context?: SignupContext): Promise<LoginResponseDto> {
+    const normalizedEmail = data.email.trim().toLowerCase();
+
+    // 1. Lookup User (Prevent Account Enumeration via Uniform Error Message)
+    const user = await this.userRepository.findByEmail(normalizedEmail);
+    if (!user) {
+      await this.userRepository.createAuditLog({
+        action: "LOGIN_FAILED_UNKNOWN_EMAIL",
+        ipAddress: context?.ipAddress,
+        details: { email: normalizedEmail, requestId: context?.requestId },
+      });
+      throw new AppError("Invalid email or password credentials.", 401);
+    }
+
+    // 2. Verify Password via PasswordService
+    const isPasswordValid = await this.passwordService.verify(data.password, user.passwordHash);
+    if (!isPasswordValid) {
+      await this.userRepository.createAuditLog({
+        action: "LOGIN_FAILED_INVALID_PASSWORD",
+        userId: user.id,
+        ipAddress: context?.ipAddress,
+        details: { requestId: context?.requestId },
+      });
+      throw new AppError("Invalid email or password credentials.", 401);
+    }
+
+    // 3. Reject Inactive/Suspended Accounts
+    if (user.status === "SUSPENDED" || user.status === "INACTIVE") {
+      await this.userRepository.createAuditLog({
+        action: "LOGIN_REJECTED_ACCOUNT_SUSPENDED",
+        userId: user.id,
+        ipAddress: context?.ipAddress,
+        details: { status: user.status, requestId: context?.requestId },
+      });
+      throw new AppError("Your account has been suspended or deactivated. Please contact support.", 403);
+    }
+
+    // 4. Reject Unverified Emails
+    if (!user.isVerified) {
+      await this.userRepository.createAuditLog({
+        action: "LOGIN_REJECTED_UNVERIFIED_EMAIL",
+        userId: user.id,
+        ipAddress: context?.ipAddress,
+        details: { requestId: context?.requestId },
+      });
+      throw new AppError("Please verify your email address before signing in.", 403);
+    }
+
+    // 5. Generate Refresh Token Pair & 30-Day Expiry Date
+    const { rawToken: rawRefreshToken, hashedToken: hashedRefreshToken } = this.tokenService.generateRandomToken();
+    const refreshExpiry = this.tokenService.calculateExpiry(30 * 24); // 30 days expiry
+
+    // 6. Create Session Record & Audit Log inside Transaction
+    await TransactionHelper.runInTransaction(async (tx) => {
+      await this.userRepository.createSession(
+        {
+          refreshToken: hashedRefreshToken,
+          userId: user.id,
+          expiresAt: refreshExpiry,
+          ipAddress: context?.ipAddress,
+          userAgent: context?.userAgent,
+        },
+        tx
+      );
+
+      await this.userRepository.createAuditLog(
+        {
+          action: "USER_LOGIN_SUCCESS",
+          userId: user.id,
+          ipAddress: context?.ipAddress,
+          details: { userAgent: context?.userAgent, requestId: context?.requestId },
+        },
+        tx
+      );
+    });
+
+    // 7. Generate Signed 15-Minute Access Token
+    const accessToken = this.jwtService.generateAccessToken({
+      userId: user.id,
+      role: user.role,
+      universityId: user.universityId,
+    });
+
+    return {
+      user: {
+        id: user.id,
+        email: user.email,
+        role: user.role,
+        isVerified: user.isVerified,
+        status: user.status,
+        universityId: user.universityId,
+        universityName: user.university?.name || null,
+      },
+      accessToken,
+      refreshToken: rawRefreshToken,
+    };
+  }
+
+  /**
+   * Enterprise Refresh Token Rotation Service (Defends Against Replay Attacks)
+   */
+  async refresh(rawRefreshToken: string, context?: SignupContext): Promise<{ accessToken: string; refreshToken: string }> {
+    if (!rawRefreshToken) {
+      throw new AppError("Refresh token is required.", 400);
+    }
+
+    const hashedRefreshToken = this.tokenService.hashToken(rawRefreshToken);
+    
+    // Look up session in DB (support both hashed and legacy unhashed lookup defensively)
+    let session = await this.userRepository.findSessionByToken(hashedRefreshToken);
+    if (!session) {
+      session = await this.userRepository.findSessionByToken(rawRefreshToken);
+    }
+
+    // Reuse Detection & Replay Attack Protection: If token is valid JWT but session absent, revoke ALL user sessions
+    if (!session) {
+      try {
+        const decoded = this.jwtService.verifyRefreshToken(rawRefreshToken);
+        if (decoded?.userId) {
+          await this.userRepository.deleteSessionsByUserId(decoded.userId);
+          await this.userRepository.createAuditLog({
+            action: "SECURITY_ALERT_REFRESH_TOKEN_REUSE",
+            userId: decoded.userId,
+            ipAddress: context?.ipAddress,
+            details: { reason: "COMPROMISED_TOKEN_REUSE_ATTEMPT", requestId: context?.requestId },
+          });
+        }
+      } catch {
+        // Fallback for invalid signature
+      }
+      throw new AppError("Security alert: Invalid or compromised session token. Access revoked across all devices.", 401);
+    }
+
+    // Check expiration
+    if (this.tokenService.isExpired(session.expiresAt)) {
+      await this.userRepository.deleteSession(session.refreshToken);
+      throw new AppError("Session expired. Please sign in again.", 401);
+    }
+
+    // Rotate Refresh Token: Delete Old Session & Create New Session
+    const { rawToken: newRawRefreshToken, hashedToken: newHashedRefreshToken } = this.tokenService.generateRandomToken();
+    const newRefreshExpiry = this.tokenService.calculateExpiry(30 * 24); // 30 days
+
+    await TransactionHelper.runInTransaction(async (tx) => {
+      await this.userRepository.deleteSession(session.refreshToken, tx);
+      await this.userRepository.createSession(
+        {
+          refreshToken: newHashedRefreshToken,
+          userId: session.userId,
+          expiresAt: newRefreshExpiry,
+          ipAddress: context?.ipAddress || session.ipAddress || undefined,
+          userAgent: context?.userAgent || session.userAgent || undefined,
+        },
+        tx
+      );
+    });
+
+    // Generate New Access Token
+    const newAccessToken = this.jwtService.generateAccessToken({
+      userId: session.user.id,
+      role: session.user.role,
+      universityId: session.user.universityId,
+    });
+
+    return {
+      accessToken: newAccessToken,
+      refreshToken: newRawRefreshToken,
+    };
+  }
+
+  /**
+   * Session Termination (Logout)
+   */
+  async logout(rawRefreshToken: string, context?: SignupContext): Promise<void> {
+    if (!rawRefreshToken) return;
+
+    const hashedRefreshToken = this.tokenService.hashToken(rawRefreshToken);
+    let session = await this.userRepository.findSessionByToken(hashedRefreshToken);
+    if (!session) {
+      session = await this.userRepository.findSessionByToken(rawRefreshToken);
+    }
+
+    if (session) {
+      await this.userRepository.deleteSession(session.refreshToken);
+      await this.userRepository.createAuditLog({
+        action: "USER_LOGOUT",
+        userId: session.userId,
+        ipAddress: context?.ipAddress,
+        details: { requestId: context?.requestId },
+      });
+    }
+  }
+
+  /**
    * Production Email Verification Service
    */
   async verifyEmail(token: string, context?: SignupContext): Promise<{ message: string }> {
@@ -184,7 +394,6 @@ export class AuthService {
       return { message: "Email address is already verified." };
     }
 
-    // Atomic Verification Update in Transaction
     await TransactionHelper.runInTransaction(async (tx) => {
       await this.userRepository.update(user.id, { isVerified: true, status: "ACTIVE" }, tx);
       await this.userRepository.markEmailVerificationUsed(hashedToken, tx);
@@ -211,7 +420,6 @@ export class AuthService {
 
     const user = await this.userRepository.findByEmail(normalizedEmail);
 
-    // Anti-Enumeration: If user doesn't exist or is already verified, return generic success message
     if (!user || user.isVerified) {
       if (user?.isVerified) {
         await this.userRepository.createAuditLog({
@@ -224,10 +432,8 @@ export class AuthService {
       return { message: genericResponseMessage };
     }
 
-    // Invalidate prior active verification tokens
     await this.userRepository.invalidateActiveEmailVerifications(user.id);
 
-    // Generate new token pair
     const { rawToken, hashedToken } = this.tokenService.generateRandomToken();
     const verificationExpiry = this.tokenService.calculateExpiry(24);
 
@@ -252,7 +458,6 @@ export class AuthService {
       );
     });
 
-    // Queue email dispatch outside transaction
     await this.emailService.sendVerificationEmail(user.email, rawToken);
 
     return { message: genericResponseMessage };
@@ -361,125 +566,6 @@ export class AuthService {
       universityId: user.universityId,
       isVerified: user.isVerified
     };
-  }
-
-  // --- LOGIN ---
-  async login(data: { email: string; passwordHash: string; ipAddress?: string; userAgent?: string }) {
-    const normalizedEmail = data.email.trim().toLowerCase();
-    const user = await this.userRepository.findByEmail(normalizedEmail);
-    if (!user) {
-      throw ApiError.unauthorized("Incorrect email or password credentials.");
-    }
-
-    const passwordMatch = await this.passwordService.verify(data.passwordHash, user.passwordHash);
-    if (!passwordMatch) {
-      throw ApiError.unauthorized("Incorrect email or password credentials.");
-    }
-
-    const payload: TokenPayload = {
-      userId: user.id,
-      role: user.role,
-      universityId: user.universityId
-    };
-
-    const accessToken = signAccessToken(payload);
-    const refreshToken = signRefreshToken(payload);
-
-    const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + 7);
-
-    await this.userRepository.createSession({
-      refreshToken,
-      userId: user.id,
-      expiresAt,
-      ipAddress: data.ipAddress,
-      userAgent: data.userAgent
-    });
-
-    await this.userRepository.createAuditLog({
-      action: "USER_LOGIN",
-      userId: user.id,
-      ipAddress: data.ipAddress,
-      details: { userAgent: data.userAgent }
-    });
-
-    return {
-      user: {
-        id: user.id,
-        email: user.email,
-        role: user.role,
-        universityId: user.universityId,
-        universityName: user.university?.name || null,
-        isVerified: user.isVerified
-      },
-      accessToken,
-      refreshToken
-    };
-  }
-
-  // --- TOKEN ROTATION ---
-  async refresh(refreshToken: string, ipAddress?: string, userAgent?: string) {
-    let decoded: TokenPayload;
-    try {
-      decoded = verifyRefreshToken(refreshToken);
-    } catch {
-      throw ApiError.unauthorized("Invalid or expired refresh token. Please sign in again.");
-    }
-
-    const session = await this.userRepository.findSessionByToken(refreshToken);
-
-    if (!session) {
-      await this.userRepository.deleteSessionsByUserId(decoded.userId);
-      throw ApiError.unauthorized("Compromised session token detected. Access revoked across all devices.");
-    }
-
-    if (new Date() > session.expiresAt) {
-      await this.userRepository.deleteSession(refreshToken);
-      throw ApiError.unauthorized("Session expired. Please log in again.");
-    }
-
-    await this.userRepository.deleteSession(refreshToken);
-
-    const payload: TokenPayload = {
-      userId: session.user.id,
-      role: session.user.role,
-      universityId: session.user.universityId
-    };
-
-    const newAccessToken = signAccessToken(payload);
-    const newRefreshToken = signRefreshToken(payload);
-
-    const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + 7);
-
-    await this.userRepository.createSession({
-      refreshToken: newRefreshToken,
-      userId: session.user.id,
-      expiresAt,
-      ipAddress: ipAddress || session.ipAddress || undefined,
-      userAgent: userAgent || session.userAgent || undefined
-    });
-
-    return {
-      accessToken: newAccessToken,
-      refreshToken: newRefreshToken
-    };
-  }
-
-  // --- LOGOUT ---
-  async logout(refreshToken: string) {
-    try {
-      const session = await this.userRepository.findSessionByToken(refreshToken);
-      if (session) {
-        await this.userRepository.deleteSession(refreshToken);
-        await this.userRepository.createAuditLog({
-          action: "USER_LOGOUT",
-          userId: session.userId
-        });
-      }
-    } catch {
-      throw ApiError.internal("Error logging out session.");
-    }
   }
 
   // --- FORGOT & RESET PASSWORD ---

@@ -4,7 +4,10 @@ import { sendSuccessResponse } from "../../utils/response";
 import { AuthenticatedRequest } from "../../middlewares/auth.middleware";
 import { ApiError } from "../../utils/api-error";
 
+import { CookieService } from "./services/cookie.service";
+
 const authService = new AuthService();
+const cookieService = new CookieService();
 
 export class AuthController {
   async signup(req: Request, res: Response, next: NextFunction) {
@@ -69,30 +72,24 @@ export class AuthController {
 
   async login(req: Request, res: Response, next: NextFunction) {
     try {
-      const { email, password } = req.body;
-      const ipAddress = req.ip || undefined;
+      const ipAddress = req.ip || (req.headers["x-forwarded-for"] as string) || undefined;
       const userAgent = req.headers["user-agent"] || undefined;
+      const requestId = (req as any).id || (req.headers["x-request-id"] as string) || undefined;
 
-      const result = await authService.login({
-        email,
-        passwordHash: password,
+      const result = await authService.login(req.body, {
         ipAddress,
-        userAgent
+        userAgent,
+        requestId,
       });
 
-      // Set rotated refresh token in HTTP-only cookie
-      res.cookie("refreshToken", result.refreshToken, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "strict",
-        maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days in ms
-      });
+      // Set Access & Refresh cookies
+      cookieService.setAuthCookies(res, result.accessToken, result.refreshToken);
 
       return sendSuccessResponse(
         res,
         {
           user: result.user,
-          accessToken: result.accessToken
+          accessToken: result.accessToken,
         },
         "User session authenticated successfully."
       );
@@ -103,33 +100,24 @@ export class AuthController {
 
   async refresh(req: Request, res: Response, next: NextFunction) {
     try {
-      const refreshToken = req.cookies?.refreshToken || req.body.refreshToken;
-      if (!refreshToken) {
-        return res.status(400).json({
-          success: false,
-          message: "Refresh token parameter is missing from request payload or cookies.",
-          data: null,
-          meta: null,
-          errors: { message: "Refresh token is required" }
-        });
-      }
-
-      const ipAddress = req.ip || undefined;
+      const refreshToken = req.cookies?.shivil_refresh_token || req.cookies?.refreshToken || req.body.refreshToken;
+      const ipAddress = req.ip || (req.headers["x-forwarded-for"] as string) || undefined;
       const userAgent = req.headers["user-agent"] || undefined;
-      const result = await authService.refresh(refreshToken, ipAddress, userAgent);
+      const requestId = (req as any).id || (req.headers["x-request-id"] as string) || undefined;
 
-      // Rotate cookie
-      res.cookie("refreshToken", result.refreshToken, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "strict",
-        maxAge: 7 * 24 * 60 * 60 * 1000
+      const result = await authService.refresh(refreshToken, {
+        ipAddress,
+        userAgent,
+        requestId,
       });
+
+      // Set rotated cookies
+      cookieService.setAuthCookies(res, result.accessToken, result.refreshToken);
 
       return sendSuccessResponse(
         res,
         {
-          accessToken: result.accessToken
+          accessToken: result.accessToken,
         },
         "Access token rotated successfully."
       );
@@ -140,16 +128,15 @@ export class AuthController {
 
   async logout(req: Request, res: Response, next: NextFunction) {
     try {
-      const refreshToken = req.cookies?.refreshToken || req.body.refreshToken;
+      const refreshToken = req.cookies?.shivil_refresh_token || req.cookies?.refreshToken || req.body.refreshToken;
+      const ipAddress = req.ip || (req.headers["x-forwarded-for"] as string) || undefined;
+      const requestId = (req as any).id || (req.headers["x-request-id"] as string) || undefined;
+
       if (refreshToken) {
-        await authService.logout(refreshToken);
+        await authService.logout(refreshToken, { ipAddress, requestId });
       }
 
-      res.clearCookie("refreshToken", {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "strict"
-      });
+      cookieService.clearAuthCookies(res);
 
       return sendSuccessResponse(res, null, "User logged out and session revoked successfully.");
     } catch (error) {
