@@ -1,5 +1,5 @@
 import { PrismaClient } from "@prisma/client";
-import bcrypt from "bcryptjs";
+import { prismaClient as singletonPrismaClient } from "../database/client/prisma.client";
 
 const globalForPrisma = global as unknown as { prisma: any };
 
@@ -214,7 +214,7 @@ class MockPrismaClient {
   }
 }
 
-// Check if we should run in Mock mode (only when explicitly requested via env variable)
+// Check if we should run in Mock mode
 const useMockDatabase = process.env.MOCK_DATABASE === "true";
 
 let prismaInstance: any;
@@ -225,7 +225,6 @@ if (useMockDatabase) {
       if (prop in target) {
         return target[prop];
       }
-      // Return a generic model proxy for missing tables (e.g. program, classroom, etc.)
       return new Proxy({}, {
         get: (modelTarget, modelProp) => {
           return (...args: any[]) => {
@@ -247,13 +246,7 @@ if (useMockDatabase) {
   };
   prismaInstance = new Proxy(new MockPrismaClient(), handler);
 } else {
-  prismaInstance =
-    globalForPrisma.prisma ||
-    new PrismaClient({
-      log: ["error"],
-    });
-
-  if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prismaInstance;
+  prismaInstance = singletonPrismaClient;
 }
 
 export const prisma = prismaInstance as unknown as PrismaClient;
