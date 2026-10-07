@@ -6,7 +6,7 @@ services:
     plan: starter
     rootDir: backend
     buildCommand: npm install && npm run build
-    startCommand: node dist/server.js
+    startCommand: node dist/app/server.js
     envVars:
       - key: PORT
         value: 5000
@@ -30,7 +30,7 @@ services:
     name: shivil-ai-frontend
     env: static
     plan: starter
-    buildCommand: npm install && npm run build
+    buildCommand: npm install && npx prisma generate && npm run build
     publishPath: dist
     headers:
       - path: /*

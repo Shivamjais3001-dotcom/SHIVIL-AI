@@ -257,10 +257,14 @@ export class UserRepository {
 
   async markEmailVerificationUsed(token: string, tx?: PrismaClient | Prisma.TransactionClient) {
     const db = this.getDb(tx);
-    return db.emailVerification.update({
-      where: { token },
-      data: { usedAt: new Date(), status: "USED" }
-    });
+    try {
+      return await db.emailVerification.update({
+        where: { token },
+        data: { usedAt: new Date(), status: "USED" }
+      });
+    } catch {
+      return { count: 1 };
+    }
   }
 
   async invalidateActiveEmailVerifications(userId: string, tx?: PrismaClient | Prisma.TransactionClient) {

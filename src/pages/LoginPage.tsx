@@ -1,7 +1,9 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { Mail, Lock, Eye, EyeOff, Sparkles, Loader2, ArrowRight } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
+import { useAuthStore } from "../store/auth.store";
+import { Toast, type ToastProps } from "../components/ui/Toast";
 
 function Login() {
   const [showPassword, setShowPassword] = useState(false);
@@ -10,9 +12,10 @@ function Login() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [toast, setToast] = useState<Omit<ToastProps, "onClose"> | null>(null);
 
   const navigate = useNavigate();
-  const { login } = useAuth();
+  const { login, error: authError } = useAuth();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -39,14 +42,27 @@ function Login() {
     setLoading(false);
 
     if (success) {
-      navigate("/dashboard");
+      setToast({
+        type: "success",
+        title: "Authentication Successful",
+        message: "Welcome to SHIVIL AI OS Terminal.",
+      });
+      setTimeout(() => navigate("/dashboard"), 300);
     } else {
-      setError("Unauthorized access. Invalid credentials or network offline.");
+      const storeErr = useAuthStore.getState().error || authError;
+      const displayMsg = storeErr || "Invalid email or password credentials.";
+      setError(displayMsg);
+      setToast({
+        type: "error",
+        title: "Authentication Failed",
+        message: displayMsg,
+      });
     }
   };
 
   return (
     <div className="min-h-screen bg-[#030712] flex items-center justify-center p-6 relative overflow-hidden">
+      {toast && <Toast {...toast} onClose={() => setToast(null)} />}
       
       {/* Background glow effects */}
       <div className="absolute top-1/4 left-1/4 w-[350px] h-[350px] bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
@@ -96,7 +112,7 @@ function Login() {
           <div className="space-y-1.5">
             <div className="flex justify-between items-center">
               <label className="text-[11px] uppercase tracking-wider text-slate-400 font-bold">Security Password</label>
-              <a href="#" className="text-[11px] text-blue-400 hover:text-blue-300 transition-colors">Forgot key?</a>
+              <Link to="/resend-verification" className="text-[11px] text-blue-400 hover:text-blue-300 transition-colors">Verify account?</Link>
             </div>
             <div className="relative group">
               <Lock size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-blue-400 transition-colors" />
@@ -152,7 +168,7 @@ function Login() {
             {loading ? (
               <>
                 <Loader2 size={16} className="animate-spin text-white" />
-                <span>Decrypting credentials...</span>
+                <span>Authenticating credentials...</span>
               </>
             ) : (
               <>
@@ -165,8 +181,11 @@ function Login() {
         </form>
 
         {/* Footer info inside card */}
-        <div className="mt-8 text-center border-t border-slate-900/60 pt-6">
-          <p className="text-xs text-slate-600">
+        <div className="mt-8 text-center border-t border-slate-900/60 pt-6 space-y-2">
+          <p className="text-xs text-slate-500">
+            Don't have an account? <Link to="/signup" className="text-blue-400 font-semibold hover:underline">Register here</Link>
+          </p>
+          <p className="text-[10px] text-slate-600">
             Authorized academic personnel only. All access logs are strictly audited.
           </p>
         </div>

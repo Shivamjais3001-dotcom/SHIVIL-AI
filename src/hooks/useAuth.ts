@@ -1,115 +1,71 @@
-import { useState, useEffect } from "react";
-import { apiClient, setAccessToken, getAccessToken } from "../api/client";
-
-interface UserPayload {
-  id: string;
-  email: string;
-  role: string;
-  universityId: string;
-  universityName: string;
-}
+import { useEffect } from "react";
+import { useAuthStore } from "../store/auth.store";
+import { authService } from "../services/auth.service";
 
 export function useAuth() {
-  const [user, setUser] = useState<UserPayload | null>(() => {
-    const cached = localStorage.getItem("auth_user");
-    return cached ? JSON.parse(cached) : null;
-  });
-  const [isLoading, setIsLoading] = useState(true);
+  const {
+    user,
+    status,
+    isLoading,
+    error,
+    login: storeLogin,
+    signup: storeSignup,
+    logout: storeLogout,
+    refreshSession,
+    initializeAuth,
+  } = useAuthStore();
 
-  // Initialize and check current session
   useEffect(() => {
-    const verifySession = async () => {
-      const activeToken = getAccessToken();
-      if (!activeToken) {
-        setIsLoading(false);
-        return;
-      }
-      try {
-        // Fetch session status or run a token check
-        const response = await apiClient.get("/dashboard/metrics"); // Test endpoint
-        if (!response.data?.success) {
-          throw new Error("Invalid session");
-        }
-      } catch (err) {
-        // Clear auth state on fail
-        setAccessToken(null);
-        setUser(null);
-        localStorage.removeItem("auth_user");
-      } finally {
-        setIsLoading(false);
-      }
-    };
+    // Run initialization bootstrap once on hook mount
+    initializeAuth();
 
-    verifySession();
-
-    // Listen to global logout broadcast events from interceptor
+    // Listen to global logout broadcast events from API client interceptor
     const handleLogoutBroadcast = () => {
-      setUser(null);
-      localStorage.removeItem("auth_user");
+      storeLogout();
     };
+
     window.addEventListener("auth-logout", handleLogoutBroadcast);
     return () => window.removeEventListener("auth-logout", handleLogoutBroadcast);
-  }, []);
+  }, [initializeAuth, storeLogout]);
 
-  const login = async (email: string, password: string): Promise<boolean> => {
-    setIsLoading(true);
-    try {
-      const response = await apiClient.post("/auth/login", { email, password });
-      if (response.data?.success) {
-        const payload = response.data.data;
-        setAccessToken(payload.accessToken);
-        
-        // Map backend roles (e.g. UNIVERSITY_ADMIN -> Admin)
-        let normalizedRole = "Admin";
-        if (payload.user.role === "FACULTY") normalizedRole = "Faculty";
-        if (payload.user.role === "STUDENT") normalizedRole = "Student";
-
-        const userObj: UserPayload = {
-          id: payload.user.id,
-          email: payload.user.email,
-          role: normalizedRole,
-          universityId: payload.user.universityId,
-          universityName: payload.user.universityName
-        };
-
-        setUser(userObj);
-        localStorage.setItem("auth_user", JSON.stringify(userObj));
-        localStorage.setItem("userRole", normalizedRole);
-        localStorage.setItem("adminName", normalizedRole === "Admin" ? "Shivam Jaiswal" : normalizedRole === "Faculty" ? "Dr. Sarah Jenkins" : "Arjun Sharma");
-        
-        return true;
-      }
-      return false;
-    } catch (err) {
-      console.error("Login request failed:", err);
-      return false;
-    } finally {
-      setIsLoading(false);
-    }
+  const login = async (email: string, password?: string): Promise<boolean> => {
+    return storeLogin({ email, password });
   };
 
-  const logout = async () => {
-    setIsLoading(true);
-    try {
-      await apiClient.post("/auth/logout", {});
-    } catch (err) {
-      console.warn("Logout request failed (using local cleanup fallback).");
-    } finally {
-      setAccessToken(null);
-      setUser(null);
-      localStorage.removeItem("auth_user");
-      localStorage.removeItem("userRole");
-      localStorage.removeItem("adminName");
-      setIsLoading(false);
-      window.location.href = "/login";
-    }
+  const signup = async (email: string, password: string, role: string, universityId?: string, name?: string): Promise<boolean> => {
+    return storeSignup({ email, password, role, universityId, name });
+  };
+
+  const logout = async (): Promise<void> => {
+    await storeLogout();
+    window.location.href = "/login";
+  };
+
+  const refresh = async (): Promise<boolean> => {
+    return refreshSession();
+  };
+
+  const forgotPassword = async (email: string): Promise<{ message: string }> => {
+    return authService.forgotPassword({ email });
+  };
+
+  const resetPassword = async (token: string, newPassword: string): Promise<{ message: string }> => {
+    return authService.resetPassword({ token, newPassword });
   };
 
   return {
     user,
+    status,
     isLoading,
-    isAuthenticated: !!user,
+    isAuthenticated: status === "authenticated" || !!user,
+    error,
     login,
-    logout
+    signup,
+    logout,
+    refresh,
+    forgotPassword,
+    resetPassword,
   };
 }
+
+export default useAuth;

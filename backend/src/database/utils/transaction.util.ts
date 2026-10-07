@@ -1,5 +1,5 @@
 import { PrismaClient, Prisma } from "@prisma/client";
-import { prismaClient } from "../client/prisma.client";
+import prisma from "../../config/database";
 
 export interface TransactionOptions {
   maxWait?: number; // Maximum time Prisma Client will wait to acquire transaction lock (default: 2000ms)
@@ -13,9 +13,9 @@ export class TransactionHelper {
     options?: TransactionOptions,
     customClient?: PrismaClient
   ): Promise<T> {
-    const client = customClient || prismaClient;
+    const client = customClient || (prisma as any);
     return client.$transaction(
-      async (tx) => {
+      async (tx: any) => {
         return await fn(tx);
       },
       {

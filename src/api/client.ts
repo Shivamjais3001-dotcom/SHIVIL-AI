@@ -14,7 +14,7 @@ export const setAccessToken = (token: string | null) => {
 
 export const getAccessToken = () => memAccessToken;
 
-// Setup API endpoint base URL (pointing to the local backend port 5000)
+// Setup API endpoint base URL (pointing to local backend port 5000)
 export const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
 export const apiClient = axios.create({
@@ -48,10 +48,9 @@ apiClient.interceptors.response.use(
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
       try {
-        // Attempt rotation via refresh token
-        const refreshResponse = await axios.post(`${API_BASE_URL}/api/auth/refresh`, {}, { withCredentials: true });
+        const refreshResponse = await axios.post(`${API_BASE_URL}/api/v1/auth/refresh`, {}, { withCredentials: true });
         const newAccessToken = refreshResponse.data?.data?.accessToken;
-        
+
         if (newAccessToken) {
           setAccessToken(newAccessToken);
           if (originalRequest.headers) {
@@ -60,49 +59,44 @@ apiClient.interceptors.response.use(
           return apiClient(originalRequest);
         }
       } catch (refreshErr) {
-        // Refresh token expired or invalid; clear auth and redirect
         setAccessToken(null);
         localStorage.removeItem("userRole");
         localStorage.removeItem("adminName");
+        localStorage.removeItem("auth_user");
         window.dispatchEvent(new Event("auth-logout"));
       }
     }
 
-    // 2. Offline Hybrid Fallback Layer: Intercept network connect errors or database offline errors in dev mode
+    const url = originalRequest.url || "";
+    const method = originalRequest.method?.toUpperCase() || "GET";
+
+    // Authentication endpoints must NEVER use offline fallback or mock authentication.
+    // Always pass through real backend errors.
+    const isAuthEndpoint =
+      url.includes("/auth/login") ||
+      url.includes("/v1/auth/login") ||
+      url.includes("/auth/signup") ||
+      url.includes("/v1/auth/signup") ||
+      url.includes("/auth/refresh") ||
+      url.includes("/v1/auth/refresh") ||
+      url.includes("/auth/logout") ||
+      url.includes("/v1/auth/logout") ||
+      url.includes("/auth/forgot-password") ||
+      url.includes("/v1/auth/forgot-password") ||
+      url.includes("/auth/reset-password") ||
+      url.includes("/v1/auth/reset-password") ||
+      url.includes("/auth/verify-email") ||
+      url.includes("/v1/auth/verify-email");
+
+    if (isAuthEndpoint) {
+      return Promise.reject(error);
+    }
+
+    // 2. Offline Hybrid Fallback Layer for Non-Auth Resources Only
     const isDev = import.meta.env.DEV;
     const isDbError = error.response && (error.response.status === 500 || error.response.status === 503);
     if (!error.response || (isDev && isDbError)) {
-      console.warn("⚠️ SHIVIL AI: Local backend or database offline. Activating hybrid offline fallback layer.");
-      
-      const url = originalRequest.url || "";
-      const method = originalRequest.method?.toUpperCase() || "GET";
-
-      // Mock Authentication Login Fallback
-      if (url.includes("/auth/login") && method === "POST") {
-        const body = originalRequest.data ? (typeof originalRequest.data === 'string' ? JSON.parse(originalRequest.data) : originalRequest.data) : {};
-        const loginEmail = body.email || "shivamjais3001@gmail.com";
-        
-        let mockRole = "SUPER_ADMIN";
-        if (loginEmail.includes("faculty")) mockRole = "FACULTY";
-        if (loginEmail.includes("student")) mockRole = "STUDENT";
-
-        return {
-          data: {
-            success: true,
-            message: "Offline mock authentication successful",
-            data: {
-              accessToken: "mock-session-jwt-token-cosmic-2026",
-              user: {
-                id: "u-mock-99",
-                email: loginEmail,
-                role: mockRole,
-                universityId: "univ-shivil",
-                universityName: "SHIVIL AI University OS"
-              }
-            }
-          }
-        };
-      }
+      console.warn("⚠️ SHIVIL AI: Local backend or database offline. Activating hybrid offline fallback layer for data queries.");
 
       // Match routes and return mock data in standard backend envelopes
       if (url.includes("/dashboard/metrics")) {

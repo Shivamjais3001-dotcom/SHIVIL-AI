@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 import { ApiError } from "../utils/api-error";
 import { CustomError } from "../utils/custom-error";
+import { AppError } from "../common/errors/AppError";
 import { sendErrorResponse } from "../utils/response";
 import { ZodError } from "zod";
 import { logger } from "../config/logger";
@@ -16,12 +17,15 @@ export function errorMiddleware(
     return next(err);
   }
 
-  let statusCode = 500;
+  let statusCode = err.statusCode || 500;
   let message = err.message || "Internal Server Error";
-  let details: any = null;
+  let details: any = err.details || null;
 
   // Intercept and normalize error instances
-  if (err instanceof ApiError) {
+  if (err instanceof AppError) {
+    statusCode = err.statusCode;
+    message = err.message;
+  } else if (err instanceof ApiError) {
     statusCode = err.statusCode;
     message = err.message;
     details = err.details;
@@ -36,10 +40,10 @@ export function errorMiddleware(
       field: e.path.join("."),
       message: e.message
     }));
-  } else if (err.name === "PrismaClientKnownRequestError") {
+  } else if (err.name === "PrismaClientKnownRequestError" || err.code === "P2002") {
     if (err.code === "P2002") {
       statusCode = 409;
-      message = "A resource with this identifier already exists (Unique constraint violation).";
+      message = "An account with this email address already exists.";
       details = { target: err.meta?.target };
     } else if (err.code === "P2025") {
       statusCode = 404;
@@ -48,6 +52,9 @@ export function errorMiddleware(
       statusCode = 400;
       message = `Database constraint execution failure: ${err.message}`;
     }
+  } else if (err.name === "PrismaClientInitializationError") {
+    statusCode = 503;
+    message = "Database connection unavailable. Please check database server.";
   }
 
   // Log server-side diagnostic alert via Winston
@@ -60,5 +67,5 @@ export function errorMiddleware(
     method: req.method
   });
 
-  return sendErrorResponse(res, message, statusCode, details, err.stack);
+  return sendErrorResponse(res, message, statusCode, details, process.env.NODE_ENV === "production" ? undefined : err.stack);
 }

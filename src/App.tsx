@@ -17,6 +17,10 @@ const queryClient = new QueryClient({
 // Code splitting dynamic page segments
 const Home = lazy(() => import("./pages/Home"));
 const Login = lazy(() => import("./pages/LoginPage"));
+const SignupPage = lazy(() => import("./pages/SignupPage"));
+const VerifyEmailPage = lazy(() => import("./pages/VerifyEmailPage"));
+const ResendVerificationPage = lazy(() => import("./pages/ResendVerificationPage"));
+
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const StudentManagement = lazy(() => import("./pages/StudentManagement"));
 const Faculty = lazy(() => import("./pages/Faculty"));
@@ -101,6 +105,9 @@ function App() {
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/login" element={<Login />} />
+          <Route path="/signup" element={<SignupPage />} />
+          <Route path="/verify-email" element={<VerifyEmailPage />} />
+          <Route path="/resend-verification" element={<ResendVerificationPage />} />
 
           <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
           <Route path="/students" element={<ProtectedRoute><StudentManagement /></ProtectedRoute>} />

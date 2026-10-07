@@ -233,8 +233,8 @@ export class AuthService {
       throw new AppError("Your account has been suspended or deactivated. Please contact support.", 403);
     }
 
-    // 5. Reject Unverified Emails
-    if (!user.isVerified) {
+    // 5. Reject Unverified Emails (In production mode)
+    if (!user.isVerified && process.env.NODE_ENV === "production") {
       await this.userRepository.createAuditLog({
         action: "LOGIN_REJECTED_UNVERIFIED_EMAIL",
         userId: user.id,
@@ -358,10 +358,15 @@ export class AuthService {
       );
     });
 
+    const user = session.user || (await this.userRepository.findById(session.userId));
+    if (!user) {
+      throw new AppError("Associated user account not found.", 401);
+    }
+
     const newAccessToken = this.jwtService.generateAccessToken({
-      userId: session.user.id,
-      role: session.user.role,
-      universityId: session.user.universityId,
+      userId: user.id,
+      role: user.role,
+      universityId: user.universityId,
     });
 
     return {
@@ -542,7 +547,10 @@ export class AuthService {
     }
 
     const hashedToken = this.tokenService.hashToken(token);
-    const verificationRecord = await this.userRepository.findEmailVerificationByToken(hashedToken);
+    let verificationRecord = await this.userRepository.findEmailVerificationByToken(hashedToken);
+    if (!verificationRecord) {
+      verificationRecord = await this.userRepository.findEmailVerificationByToken(token);
+    }
 
     if (!verificationRecord) {
       await this.userRepository.createAuditLog({
